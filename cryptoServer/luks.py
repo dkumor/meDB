@@ -1,106 +1,142 @@
 from subprocess32 import Popen,call,PIPE
-import time
+from uuid import uuid4
 import os
 
-def createCrypto(fuuid,password,user="daniel",fsize=64,filedirectory=os.getcwd(),mountdirectory=os.getcwd(),randomInit=False):
-    cryptfile = os.path.join(filedirectory,fuuid+".luks")
-    mountdir = os.path.join(mountdirectory,fuuid)
-    maploc = os.path.join("/dev/mapper",fuuid)
-    
-    #Create the file
-    if (randomInit==False):
-        #Simply allocate a file
-        code = call(["fallocate","-l",str(fsize)+"M",cryptfile])
-    else:
-        #Create the file filling it with 0s
-        call(["dd","if=/dev/urandom","of="+cryptfile,"bs=1M","count="+str(fsize)])
-    
-    #Make the mount directory
-    os.mkdir(mountdir)
-    
-    #Set up the file
-    csetup = Popen(["cryptsetup","luksFormat",cryptfile],
-                stdin=PIPE)
-    csetup.communicate(password+"\n")
-    csetup.wait()
-    
-    #Open the volume
-    csetup = Popen(["cryptsetup","luksOpen",cryptfile,fuuid],
-                stdin=PIPE)
-    csetup.communicate(password+"\n")
-    csetup.wait()
-    
-    #Make the filesystem ext4
-    code = call(["mkfs.ext4","-j",maploc])
-    
-    print code
-    
-    #Mount it!
-    code = call(["mount",maploc,mountdir])
-    
-    print code
-    
-    #Set the folder permissions to the user!
-    code = call(["chown",user+":"+user,mountdir])
-    
-    print code
-    
-    code = call(["chmod","700",mountdir])
-    print code
-    
-def mountCrypto(fuuid,password,filedirectory=os.getcwd(),mountdirectory=os.getcwd()):
-    cryptfile = os.path.join(filedirectory,fuuid+".luks")
-    mountdir = os.path.join(mountdirectory,fuuid)
-    maploc = os.path.join("/dev/mapper",fuuid)
-    
-    #Open the volume
-    csetup = Popen(["cryptsetup","luksOpen",cryptfile,fuuid],
-                stdin=PIPE)
-    csetup.communicate(password+"\n")
-    csetup.wait()
-    
-    #Mount it!
-    code = call(["mount",maploc,mountdir])
-def suspendCrypto(fuuid):
-    print call(["cryptsetup","luksSuspend",fuuid])
-def resumeCrypto(fuuid,password):
-    csetup = Popen(["cryptsetup","luksResume",fuuid],
-                stdin=PIPE)
-    csetup.communicate(password+"\n")
-    csetup.wait()
-    
-def unmountCrypto(fuuid,mountdirectory=os.getcwd()):
-    mountdir = os.path.join(mountdirectory,fuuid)
-    
-    code = call(["umount",mountdir])
-    print code
-    
-    print call(["cryptsetup","luksClose",fuuid])
-#createCrypto("r24rwe23r","testingtesting123",fsize="64M")
-fuuid = "testcrypt"
-pwn = "testingtesting123"
+class CryptoLuks(object):
+    def __init__(self,cryptfile,mountdir,password):
+        self.cryptfile = cryptfile
+        self.mountdir = mountdir
+        self.password = password    #Yes, it keeps the password plainly in memory
+        self.fuuid = uuid4().hex    #The UUID used for creating the mapper device
+        self.maploc = os.path.join("/dev/mapper",self.fuuid)
+        
+    def create(self,fsize=64,randomInit=False,owner="root"):
+        """Creates a new LUKS container, and mounts it at the given mountpoint.
+        Tries to undo changes if there is an error.
+        
+        Keyword Arguments:
+        fsize -- the file size in megabytes (int)
+        randomInit -- Whether or not to initialize created file with random bits (bool), takes longer if True.
+        """
+        
+        if (os.path.exists(self.cryptfile)==False):
+            if (randomInit==True):
+                if (call(["dd","if=/dev/urandom","of="+self.cryptfile,"bs=1M","count="+str(fsize)])!=0):
+                    raise IOError("Failed to create file \""+self.cryptfile+"\" (urandom init)")
+            else:
+                if (call(["fallocate","-l",str(fsize)+"M",self.cryptfile])!=0):
+                    raise IOError("Failed to create file \""+self.cryptfile+"\" (fallocate)")
+        else:
+            raise "File \""+self.cryptfile+"\" already exists!"
+            
+        if not os.path.exists(self.mountdir):
+            os.mkdir(self.mountdir)
+        elif (os.listdir(self.mountdir) != []):
+            os.remove(self.cryptfile)
+            raise IOError("Mount directory \""+self.cryptfile+"\" is not empty!")
+        
+        #Format the file
+        csetup = Popen(["cryptsetup","luksFormat",self.cryptfile],stdin=PIPE)
+        csetup.communicate(self.password+"\n")
+        csetup.wait()
+        if (csetup.returncode != 0):
+            os.remove(self.cryptfile)
+            os.rmdir(self.mountdir)
+            raise IOError("CryptSetup luksFormat failed!")
+        
+        #Open the volume
+        csetup = Popen(["cryptsetup","luksOpen",self.cryptfile,self.fuuid],stdin=PIPE)
+        csetup.communicate(self.password+"\n")
+        csetup.wait()
+        if (csetup.returncode != 0):
+            os.remove(self.cryptfile)
+            os.rmdir(self.mountdir)
+            raise IOError("CryptSetup luksOpen failed!")
+        
+        if (call(["mkfs.ext4","-j",self.maploc])!= 0):
+            call(["cryptsetup","luksClose",self.fuuid])
+            os.remove(self.cryptfile)
+            os.rmdir(self.mountdir)
+            raise IOError("mkfs.ext4 failed!")
+        
+        if (call(["mount",self.maploc,self.mountdir])!= 0):
+            call(["cryptsetup","luksClose",self.fuuid])
+            os.remove(self.cryptfile)
+            os.rmdir(self.mountdir)
+            raise IOError("mount failed!")
+        
+        #Allows the owner to access the directory and file - since we are currently root
+        if (owner!="root"):
+            call(["chown",owner,self.mountdir])
+            call(["chown",owner,self.cryptfile])
+            
+        #For security, only owner can even touch the directory.
+        call(["chmod","700",self.mountdir])
+        
+    def open(self):
+        """Opens the LUKS file and mounts it"""
+        csetup = Popen(["cryptsetup","luksOpen",self.cryptfile,self.fuuid],stdin=PIPE)
+        csetup.communicate(self.password+"\n")
+        csetup.wait()
+        if (csetup.returncode != 0):
+            raise IOError("luksOpen failed")
+        
+        #mount it!
+        if ( call(["mount",self.maploc,self.mountdir])!= 0):
+            call(["cryptsetup","luksClose",self.fuuid])
+            raise IOError("mount failed")
+            
+    def close(self):
+        """Unmounts and closes the LUKS file"""
+        self.password = ""
+        call(["umount",self.mountdir])
+        call(["cryptsetup","luksClose",self.fuuid])
+        
+        
+    def suspend(self):
+        """Calls luksSuspend. Stops all IO, and purges keys from kernel. Note that it does not purge the password from this class, so suspend will not guarantee that password is not in memory."""
+        call(["cryptsetup","luksSuspend",self.fuuid])
+    def resume(self):
+        """Resumes previously suspended container"""
+        csetup = Popen(["cryptsetup","luksResume",self.fuuid],stdin=PIPE)
+        csetup.communicate(self.password+"\n")
+        csetup.wait()
+        if (csetup.returncode != 0):
+            raise IOError("luksResume failed!")
+            
+    def panic(self):
+        """Immediately suspends IO to the volume and attempts closing it. Closing is dependent on processes, while suspend is immediate. Can cause loss of data - use only in emergencies."""
+        self.suspend()
+        self.close()
 
-t = time.time()
-createCrypto(fuuid,pwn)
-print "create:",time.time()-t
-raw_input("ok")
-t= time.time()
-unmountCrypto(fuuid)
-print "umount:",time.time()-t
-raw_input("ok")
-t = time.time()
-mountCrypto(fuuid,pwn)
-print "mount:",time.time()-t
-raw_input("ok")
-t= time.time()
-suspendCrypto(fuuid)
-print "suspend:",time.time()-t
-raw_input("suspended")
-t= time.time()
-resumeCrypto(fuuid,pwn)
-print "resume:",time.time()-t
-raw_input("ok")
-t= time.time()
-unmountCrypto(fuuid)
-print "umount:",time.time()-t
-raw_input("done")
+if (__name__=="__main__"):
+    import time
+    c = CryptoLuks("/home/daniel/test.luks","/home/daniel/testingMe","testingTesting")
+
+    t = time.time()
+    c.create(owner="daniel")
+    print "create:",time.time()-t
+    raw_input("ok")
+    t= time.time()
+    c.close()
+    print "close:",time.time()-t
+    raw_input("ok")
+
+    c = CryptoLuks("/home/daniel/test.luks","/home/daniel/testingMe","testingTesting")
+
+    t = time.time()
+    c.open()
+    print "mount:",time.time()-t
+    raw_input("ok")
+    t= time.time()
+    c.suspend()
+    print "suspend:",time.time()-t
+    raw_input("ok")
+    t= time.time()
+    c.resume()
+    print "resume:",time.time()-t
+    raw_input("ok")
+    t= time.time()
+    c.close()
+    print "close:",time.time()-t
+    raw_input("done")
