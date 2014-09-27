@@ -27,7 +27,7 @@ class CryptoLuks(object):
                 if (call(["fallocate","-l",str(fsize)+"M",self.cryptfile])!=0):
                     raise IOError("Failed to create file \""+self.cryptfile+"\" (fallocate)")
         else:
-            raise "File \""+self.cryptfile+"\" already exists!"
+            raise IOError("File \""+self.cryptfile+"\" already exists!")
             
         if not os.path.exists(self.mountdir):
             os.mkdir(self.mountdir)
@@ -89,8 +89,10 @@ class CryptoLuks(object):
     def close(self):
         """Unmounts and closes the LUKS file"""
         self.password = ""
-        call(["umount",self.mountdir])
-        call(["cryptsetup","luksClose",self.fuuid])
+        if (call(["umount",self.mountdir])!=0):
+            self.panic()
+        else:
+            call(["cryptsetup","luksClose",self.fuuid])
         
         
     def suspend(self):
@@ -106,12 +108,13 @@ class CryptoLuks(object):
             
     def panic(self):
         """Immediately suspends IO to the volume and attempts closing it. Closing is dependent on processes, while suspend is immediate. Can cause loss of data - use only in emergencies."""
-        self.suspend()
+        call(["fuser","-km",self.mountdir])
         self.close()
 
 if (__name__=="__main__"):
+    print "The test will create a container, then suspend, resume, and close it. When it prints 'ok', it is waiting for input"
     import time
-    c = CryptoLuks("/home/daniel/test.luks","/home/daniel/testingMe","testingTesting")
+    c = CryptoLuks(os.path.join(os.getcwd(),"test.luks"),os.path.join(os.getcwd(),"testingMe"),"testingTesting")
 
     t = time.time()
     c.create(owner="daniel")
@@ -122,7 +125,7 @@ if (__name__=="__main__"):
     print "close:",time.time()-t
     raw_input("ok")
 
-    c = CryptoLuks("/home/daniel/test.luks","/home/daniel/testingMe","testingTesting")
+    c = CryptoLuks(os.path.join(os.getcwd(),"test.luks"),os.path.join(os.getcwd(),"testingMe"),"testingTesting")
 
     t = time.time()
     c.open()
