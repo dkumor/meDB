@@ -33,7 +33,7 @@ class Connection(object):
         
         #Start MongoDB server
         self.mongod = Popen(["mongod","--dbpath",self.folder,"--port",str(self.port),
-                        "--bind_ip","127.0.0.1","--maxConns","1","--quiet","--smallfiles"])
+                        "--bind_ip","127.0.0.1","--smallfiles","--quiet"])
         
         #Starts the client - and gives it 20 seconds to figure out whether it is going to connect or not.
         #This is dependent on whether the database daemon is successfully starting up in the background
@@ -43,12 +43,15 @@ class Connection(object):
             try:
                 self.client = MongoClient(port=self.port)
             except:
-                pass
+                time.sleep(0.1)
         if (self.client==None):
             self.close()
+            raise Exception("Could not connect to database")
             
+    def cursor(self):
+        return self.client
     
-    def close(self):
+    def close(self,waitTime=10.):
         """Closes and cleans up the database"""
         
         if (self.client!=None):
@@ -57,9 +60,9 @@ class Connection(object):
         if (self.mongod!=None):
             self.mongod.send_signal(signal.SIGINT)
             try:
-                self.mongod.wait(10)
+                self.mongod.wait(waitTime)
             except TimeoutExpired:
-                print "Expired Timeout - KILL the bastard"
+                print "Expired Timeout - killing process"
                 self.mongod.kill()
             #Add the port to the pool of free ports
             self.freedPorts.append(self.port)
@@ -72,7 +75,27 @@ class Connection(object):
             self.close()
         
 if (__name__=="__main__"):
+    import shutil
+    os.makedirs("./tmp")
+    t = time.time()
     c = Connection("./tmp")
-    raw_input("ok")
+    createTime = time.time()-t
+    db = c.cursor().db.input
+    db.insert({"hi": "hello","wee":"waa"})
+    t=time.time()
     c.close()
+    closeTime = time.time()-t
+    t = time.time()
+    c = Connection("./tmp")
+    openTime = time.time()-t
+    db = c.cursor().db.input
+    dta = db.find_one({"hi":"hello"})
+    t=time.time()
+    c.close()
+    closeTime2 = time.time()-t
+    shutil.rmtree("./tmp")
+    print dta
+    print "Create Time:",createTime
+    print "Open Time:",openTime
+    print "Close Time",closeTime,closeTime2
         
