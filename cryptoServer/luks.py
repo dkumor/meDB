@@ -3,14 +3,13 @@ from uuid import uuid4
 import os
 
 class CryptoLuks(object):
-    def __init__(self,cryptfile,mountdir,password):
+    def __init__(self,cryptfile,mountdir):
         self.cryptfile = cryptfile
         self.mountdir = mountdir
-        self.password = password    #Yes, it keeps the password plainly in memory
         self.fuuid = uuid4().hex    #The UUID used for creating the mapper device
         self.maploc = os.path.join("/dev/mapper",self.fuuid)
         
-    def create(self,fsize=64,randomInit=False,owner="root"):
+    def create(self,password,fsize=64,randomInit=False,owner="root"):
         """Creates a new LUKS container, and mounts it at the given mountpoint.
         Tries to undo changes if there is an error.
         
@@ -37,7 +36,7 @@ class CryptoLuks(object):
         
         #Format the file
         csetup = Popen(["cryptsetup","luksFormat",self.cryptfile],stdin=PIPE)
-        csetup.communicate(self.password+"\n")
+        csetup.communicate(password+"\n")
         csetup.wait()
         if (csetup.returncode != 0):
             os.remove(self.cryptfile)
@@ -46,7 +45,7 @@ class CryptoLuks(object):
         
         #Open the volume
         csetup = Popen(["cryptsetup","luksOpen",self.cryptfile,self.fuuid],stdin=PIPE)
-        csetup.communicate(self.password+"\n")
+        csetup.communicate(password+"\n")
         csetup.wait()
         if (csetup.returncode != 0):
             os.remove(self.cryptfile)
@@ -73,10 +72,10 @@ class CryptoLuks(object):
         #For security, only owner can even touch the directory.
         call(["chmod","700",self.mountdir])
         
-    def open(self):
+    def open(self,password):
         """Opens the LUKS file and mounts it"""
         csetup = Popen(["cryptsetup","luksOpen",self.cryptfile,self.fuuid],stdin=PIPE)
-        csetup.communicate(self.password+"\n")
+        csetup.communicate(password+"\n")
         csetup.wait()
         if (csetup.returncode != 0):
             raise IOError("luksOpen failed")
@@ -88,7 +87,6 @@ class CryptoLuks(object):
             
     def close(self):
         """Unmounts and closes the LUKS file"""
-        self.password = ""
         if (call(["umount",self.mountdir])!=0):
             self.panic()
         else:
@@ -98,10 +96,10 @@ class CryptoLuks(object):
     def suspend(self):
         """Calls luksSuspend. Stops all IO, and purges keys from kernel. Note that it does not purge the password from this class, so suspend will not guarantee that password is not in memory."""
         call(["cryptsetup","luksSuspend",self.fuuid])
-    def resume(self):
+    def resume(self,password):
         """Resumes previously suspended container"""
         csetup = Popen(["cryptsetup","luksResume",self.fuuid],stdin=PIPE)
-        csetup.communicate(self.password+"\n")
+        csetup.communicate(password+"\n")
         csetup.wait()
         if (csetup.returncode != 0):
             raise IOError("luksResume failed!")
@@ -114,10 +112,11 @@ class CryptoLuks(object):
 if (__name__=="__main__"):
     print "The test will create a container, then suspend, resume, and close it. When it prints 'ok', it is waiting for input"
     import time
-    c = CryptoLuks(os.path.join(os.getcwd(),"test.luks"),os.path.join(os.getcwd(),"testingMe"),"testingTesting")
+    passwd = "testingTesting"
+    c = CryptoLuks(os.path.join(os.getcwd(),"test.luks"),os.path.join(os.getcwd(),"testingMe"))
 
     t = time.time()
-    c.create(owner="daniel")
+    c.create(passwd,owner="daniel")
     print "create:",time.time()-t
     raw_input("ok")
     t= time.time()
@@ -125,10 +124,10 @@ if (__name__=="__main__"):
     print "close:",time.time()-t
     raw_input("ok")
 
-    c = CryptoLuks(os.path.join(os.getcwd(),"test.luks"),os.path.join(os.getcwd(),"testingMe"),"testingTesting")
+    c = CryptoLuks(os.path.join(os.getcwd(),"test.luks"),os.path.join(os.getcwd(),"testingMe"))
 
     t = time.time()
-    c.open()
+    c.open(passwd)
     print "mount:",time.time()-t
     raw_input("ok")
     t= time.time()
@@ -136,10 +135,12 @@ if (__name__=="__main__"):
     print "suspend:",time.time()-t
     raw_input("ok")
     t= time.time()
-    c.resume()
+    c.resume(passwd)
     print "resume:",time.time()-t
     raw_input("ok")
     t= time.time()
     c.close()
     print "close:",time.time()-t
     raw_input("done")
+    os.rmdir(os.path.join(os.getcwd(),"testingMe"))
+    os.remove(os.path.join(os.getcwd(),"test.luks"))

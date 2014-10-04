@@ -7,6 +7,8 @@ import tornado.web
 import tornado.ioloop
 import json
 
+import signal
+
 #Right now all that is supported is luks. Perhaps someday bitlocker or truecrypt will also be implemented.
 import luks
 
@@ -29,8 +31,8 @@ class cryptoServer(tornado.web.RequestHandler):
                 logger.info("Create %(container)s (%(size)sM,%(user)s)-> %(mountpoint)s",d)
                 if (d['container'] in self.containers):
                     raise Exception("Container already open")
-                lcntnr= luks.CryptoLuks(d["container"],d["mountpoint"],self.get_argument("pass"))
-                lcntnr.create(owner=d["user"])
+                lcntnr= luks.CryptoLuks(d["container"],d["mountpoint"])
+                lcntnr.create(self.get_argument("pass"),owner=d["user"],fsize=d["size"])
                 self.containers[d['container']] = lcntnr
             elif (cmd=="close"):
                 logger.info("Close %(container)s",d)
@@ -42,8 +44,8 @@ class cryptoServer(tornado.web.RequestHandler):
                 logger.info("Open %(container)s -> %(mountpoint)s",d)
                 if (d['container'] in self.containers):
                     raise Exception("Container already in use")
-                lcntnr = luks.CryptoLuks(d["container"],d["mountpoint"],self.get_argument("pass"))
-                lcntnr.open()
+                lcntnr = luks.CryptoLuks(d["container"],d["mountpoint"])
+                lcntnr.open(self.get_argument("pass"))
                 self.containers[d['container']] = lcntnr
             elif (cmd=="panic"):
                 if (d["container"]=="*"):
@@ -63,9 +65,19 @@ class cryptoServer(tornado.web.RequestHandler):
         except Exception, e:
             logger.error("Error: "+str(e))
             self.write(json.dumps({"result": "fail","msg":str(e)}))
-            
+def shutdown_server():
+    tornado.ioloop.IOLoop.instance().stop()
+def clearMounts(a,b):
+    print "Shutting down server"
+    tornado.ioloop.IOLoop.instance().add_callback_from_signal(shutdown_server)
+    print "Closing all open containers..."
+    for k in cryptoServer.containers:
+        cryptoServer.containers[k].panic()
+    cryptoServer.containers.clear()
 
 if (__name__=="__main__"):
+    signal.signal(signal.SIGINT, clearMounts)
+    
     cServer = tornado.web.Application([(meta.serverKey,cryptoServer),])
     cServer.listen(meta.portnumber,address='127.0.0.1')
     logging.info("CryptoServer running on port %s",meta.portnumber,extra={"cmd":"","container":""})

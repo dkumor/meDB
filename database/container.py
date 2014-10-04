@@ -1,6 +1,6 @@
 
 import os
-from cryptoServer import client
+from meDB.cryptoServer import client
 
 class DatabaseContainer(object):
     """
@@ -9,7 +9,7 @@ class DatabaseContainer(object):
     """
     
     fileLocation = "./db/"
-    tmpLocation = "./tmp/"
+    tmpLocation = "./mnt/"
     def __init__(self,dbid):
         self.dbid = dbid
         
@@ -40,26 +40,79 @@ class DatabaseContainer(object):
         return os.path.exists(self.datafile)
         
     def isopen(self):
-        #We assume that an open container is non-empty - it is immediately populated with some files upon creation
-        if (os.path.exists(self.decloc):
-            if os.listdir(self.decloc):
-                return True
+        #We assume that a closed container deletes its mount directory
+        if (os.path.exists(self.decloc)):
+            return True
         return False
             
     def create(self,password,size=10000):
         if (self.exists()):
             raise Exception("Data file already exists!")
-        self.crypto.create(password,size)
+        os.mkdir(self.decloc)
+           
+        try:
+            self.crypto.create(password,size)
+        except:
+            os.rmdir(self.decloc)
+            raise
+        
         #Note: This 
         
     def open(self,password):
         if self.isopen():
             raise Exception("Container already open!")
-        self.crypto.open(password)
+        os.mkdir(self.decloc)
+        try:
+            self.crypto.open(password)
+        except:
+            os.rmdir(self.decloc)
+            raise
         
-    def close(self)
+    def close(self):
         self.crypto.close()
         os.rmdir(self.decloc)   #Deletes the decryption directory
         
     def forceClose(self):
         self.crypto.panic()
+        os.rmdir(self.decloc)
+        
+if (__name__=="__main__"):
+    DatabaseContainer.fileLocation = "./test_db"
+    DatabaseContainer.tmpLocation = "./test_tmp"
+    
+    import shutil
+    pwd = "testpassword"
+    
+    if (os.path.exists(DatabaseContainer.fileLocation)):
+        shutil.rmtree(DatabaseContainer.fileLocation)
+    if (os.path.exists(DatabaseContainer.tmpLocation)):
+        shutil.rmtree(DatabaseContainer.tmpLocation)
+    
+    x = DatabaseContainer("testContainer")
+    
+    print "Checking preliminary"
+    assert not x.isopen()
+    assert not x.exists()
+    
+    print "Creating..."
+    x.create(pwd,64)
+    
+    assert x.exists()
+    assert x.isopen()
+    print "Closing..."
+    x.close()
+    
+    assert not x.isopen()
+    assert x.exists()
+    print "Opening"
+    x.open(pwd)
+    
+    assert x.isopen()
+    print "Closing"
+    x.close()
+    
+    print "Cleaning up"
+    shutil.rmtree(DatabaseContainer.fileLocation)
+    shutil.rmtree(DatabaseContainer.tmpLocation)
+    
+    assert not x.exists()

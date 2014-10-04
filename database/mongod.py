@@ -5,6 +5,11 @@ from subprocess32 import Popen
 import time #Allows timeout for connection
 from pymongo import MongoClient
 
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("MongoConnection")
+
 class Connection(object):
     """
     Given a folder in which a database is/should be located, it starts a mongoDB server rooted at that location,
@@ -15,7 +20,7 @@ class Connection(object):
     freedPorts = []     #Ports that have been freed by previous connections closing
     startPort = 27018   #The port at which to start adding new connections once there are no free ports
     
-    def __init__(self,dbfolder,port=0,smallfiles=False):
+    def __init__(self,dbfolder,smallfiles=False):
         self.folder = os.path.abspath(dbfolder)
         
         #Find a port to connect on
@@ -29,14 +34,13 @@ class Connection(object):
         if not (os.path.isdir(self.folder)):
             raise Exception("Database folder does not exist")
         
-        print self.folder,self.port
-        
         #Create the command line for MongoDB
         cmd = ["mongod","--dbpath",self.folder,"--port",str(self.port),
                         "--bind_ip","127.0.0.1","--quiet"]
         if (smallfiles):
             cmd.append("--smallfiles")
         
+        logger.info("Mongo Command: "+str(cmd))
         #Start the database
         self.mongod = Popen(cmd)
         
