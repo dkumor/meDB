@@ -36,7 +36,7 @@ class Connection(object):
         
         #Create the command line for MongoDB
         cmd = ["mongod","--dbpath",self.folder,"--port",str(self.port),
-                        "--bind_ip","127.0.0.1","--quiet"]
+                        "--bind_ip","127.0.0.1","--quiet","--nohttpinterface"]
         if (smallfiles):
             cmd.append("--smallfiles")
         
