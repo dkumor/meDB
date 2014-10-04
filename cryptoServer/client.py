@@ -7,7 +7,7 @@ import json
 
 class Crypto(object):
     server = 'http://127.0.0.1:'+str(meta.portnumber)+meta.serverKey
-    timeout = 15
+    timeout = 60
     
     def __init__(self,filename,mountpoint):
         self.filename = os.path.abspath(filename)
