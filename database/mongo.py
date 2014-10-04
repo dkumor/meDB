@@ -1,157 +1,113 @@
 import os
+import signal
+from subprocess32 import Popen
 
-import mongod
-from container import DatabaseContainer
-
+import time #Allows timeout for connection
+from pymongo import MongoClient
 
 import logging
 
 logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("MongoContainer")
+logger = logging.getLogger("MongoConnection")
 
-class MongoContainer(DatabaseContainer):
+class Connection(object):
     """
-    Opens a container and starts a mongoDB database within
+    Given a folder in which a database is/should be located, it starts a mongoDB server rooted at that location,
+    and connects to it. Once close is called, it closes the connection and kills the server.
     """
-    smallSize = 5000
-    def __init__(self,dbid):
-        DatabaseContainer.__init__(self,dbid)
-        self.isopener = False
+    
+    #MongoDB server runs on a port - each connection needs its on port. These variables manage port numbers
+    freedPorts = []     #Ports that have been freed by previous connections closing
+    startPort = 27018   #The port at which to start adding new connections once there are no free ports
+    
+    def __init__(self,dbfolder,smallfiles=False):
+        self.folder = os.path.abspath(dbfolder)
         
-        self.connection = None
-        self.cur = None
-        
-        self.dbfolder = os.path.join(self.decloc,"db")
-        self.portfile = os.path.join(self.decloc,"port")
-        
-    def checkSize(self):
-        dbsize = int(os.path.getsize(self.datafile)*1e-6) 
-        if (dbsize < 1000):
-            raise Exception("Database file too small to hold database!")
-        return (dbsize < self.smallSize)
-        
-    def create(self,password,size=10000):
-        logger.info("Create database: %s (%iM)",self.dbfolder,size)
-        if (size < 1000):
-            raise Exception("Given size too small for database")
-            
-        DatabaseContainer.create(self,password,size)
-        self.isopener = True
-        
-        #The container is now mounted, so we create the database folder (db)
-        os.mkdir(self.dbfolder)
-        
-        try:
-            self.connection = mongod.Connection(self.dbfolder,self.checkSize())
-        except:
-            DatabaseContainer.close(self)
-            raise
-            
-        self.cur = self.connection.cursor()
-        
-        #Write the port number to a file
-        with open(self.portfile,"w") as f:
-            f.write(str(self.connection.port))
-        
-        
-    def open(self,password):
-        if (self.isopen()):
-            logger.info("Open (already open): %s",self.dbfolder)
-            portnm = 0
-            #Read the port number from the file
-            with open(self.portfile,"r") as f:
-                portnum = int(f.read())
-            if (portnum < 27017):
-                raise Exception("Read portnum that is in weird range")
-                
-            self.cur = mongod.getCursor(portnum)
+        #Find a port to connect on
+        if (len(self.freedPorts) > 0):
+            self.port = self.freedPorts.pop()
         else:
-            logger.info("Open (decrypt): %s",self.dbfolder)
-            DatabaseContainer.open(self,password)
-            self.isopener = True
-            
-            try:
-                self.connection = mongod.Connection(self.dbfolder,self.checkSize())
-            except:
-                DatabaseContainer.close(self)
-                raise
-                
-            self.cur = self.connection.cursor()
+            self.port = self.startPort
+            self.startPort += 1
         
-            #Write the port number to a file
-            with open(self.portfile,"w") as f:
-                f.write(str(self.connection.port))
+        #Check if the database folder exists
+        if not (os.path.isdir(self.folder)):
+            raise Exception("Database folder does not exist")
+        
+        #Create the command line for MongoDB
+        cmd = ["mongod","--dbpath",self.folder,"--port",str(self.port),
+                        "--bind_ip","127.0.0.1","--quiet"]
+        if (smallfiles):
+            cmd.append("--smallfiles")
+        
+        logger.info("Mongo Command: "+str(cmd))
+        #Start the database
+        self.mongod = Popen(cmd)
+        
+        #Starts the client - and gives it 20 seconds to figure out whether it is going to connect or not.
+        #This is dependent on whether the database daemon is successfully starting up in the background
+        self.client = None
+        t = time.time()
+        while (time.time() - t < 20.0 and self.client==None):
+            try:
+                self.client = MongoClient(port=self.port)
+            except:
+                time.sleep(0.1)
+        if (self.client==None):
+            self.close()
+            raise Exception("Could not connect to database")
             
     def cursor(self):
-        return self.cur
+        return self.client
+    
+    def close(self,waitTime=10.):
+        """Closes and cleans up the database"""
         
-        
-    def close(self):
-        if (self.connection!=None):
-            self.connection.close()
-        if (self.isopener):
-            DatabaseContainer.close(self)
+        if (self.client!=None):
+            self.client.close()
             
-if (__name__=="__main__"):
-    MongoContainer.fileLocation = "./test_db"
-    MongoContainer.tmpLocation = "./test_mnt"
-    
-    import shutil
-    import time
-    
-    pwd = "testpassword"
-    
-    if (os.path.exists(MongoContainer.fileLocation)):
-        shutil.rmtree(MongoContainer.fileLocation)
-    if (os.path.exists(MongoContainer.tmpLocation)):
-        shutil.rmtree(MongoContainer.tmpLocation)
+        if (self.mongod!=None):
+            self.mongod.send_signal(signal.SIGINT)
+            try:
+                self.mongod.wait(waitTime)
+            except TimeoutExpired:
+                print "Expired Timeout - killing process"
+                self.mongod.kill()
+            #Add the port to the pool of free ports
+            self.freedPorts.append(self.port)
+            
+        self.mongod = None
+        self.client = None
         
-    c = MongoContainer("testDatabase")
-    
-    print "Checking preliminary"
-    assert not c.isopen()
-    assert not c.exists()
-    
-    print "Creating..."
+    def __del__(self):
+        if (self.mongod != None):
+            self.close()
+        
+#If we are just a client, all we care about is the port number - we don't worry about starting/stopping the daemon
+def getCursor(port):
+    return MongoClient(port=port)
+
+
+if (__name__=="__main__"):
+    import shutil
+    os.makedirs("./tmp")
     t = time.time()
-    c.create(pwd,1000)
+    c = Connection("./tmp")
     createTime = time.time()-t
-    
-    assert c.exists()
-    assert c.isopen()
-    
     db = c.cursor().db.input
     db.insert({"hi": "hello","wee":"waa"})
-    
-    
-    print "Closing..."
     t=time.time()
     c.close()
     closeTime = time.time()-t
-    
-    assert not c.isopen()
-    assert c.exists()
-    print "Opening"
     t = time.time()
-    c.open(pwd)
+    c = Connection("./tmp")
     openTime = time.time()-t
-    
-    assert c.isopen()
-    
     db = c.cursor().db.input
     dta = db.find_one({"hi":"hello"})
-    
-    print "Closing"
     t=time.time()
     c.close()
     closeTime2 = time.time()-t
-    
-    print "Cleaning up"
-    shutil.rmtree(MongoContainer.fileLocation)
-    shutil.rmtree(MongoContainer.tmpLocation)
-    
-    assert not c.exists()
-    assert dta["wee"]=="waa"
+    shutil.rmtree("./tmp")
     print dta
     print "Create Time:",createTime
     print "Open Time:",openTime
