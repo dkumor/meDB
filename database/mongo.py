@@ -48,7 +48,7 @@ class Connection(object):
         #This is dependent on whether the database daemon is successfully starting up in the background
         self.client = None
         t = time.time()
-        while (time.time() - t < 20.0 and self.client==None):
+        while (time.time() - t < 60.0 and self.client==None):
             try:
                 self.client = MongoClient(port=self.port)
             except:
