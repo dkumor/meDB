@@ -44,15 +44,22 @@ class Connection(object):
         #Start the database
         self.mongod = Popen(cmd)
         
-        #Starts the client - and gives it 20 seconds to figure out whether it is going to connect or not.
-        #This is dependent on whether the database daemon is successfully starting up in the background
+        #Starts the client - and gives it 2 minutes to figure out whether it is going to connect or not.
+        #This is dependent on whether the database daemon is successfully starting up in the background.
+        #The extremely long wait time is because some old laptops can take very long to create a database.
+        #The wait time is not an issue, since we check if mongoDB crashed if we can't connect - so in effect
+        #the actual wait time is at most a couple seconds if the database actually fails to start.
         self.client = None
         t = time.time()
-        while (time.time() - t < 60.0 and self.client==None):
+        while (time.time() - t < 120.0 and self.client==None):
             try:
                 self.client = MongoClient(port=self.port)
             except:
                 time.sleep(0.1)
+                #If the process crashed for some reason, don't continue waiting like an idiot
+                if (self.mongod.poll()!=None):
+                    self.mongod = None
+                    break
         if (self.client==None):
             self.close()
             raise Exception("Could not connect to database")
