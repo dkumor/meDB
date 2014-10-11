@@ -3,7 +3,6 @@ import os
 import mongo
 from container import DatabaseContainer
 
-
 import logging
 
 logging.basicConfig(level=logging.INFO)
@@ -54,7 +53,7 @@ class MongoContainer(DatabaseContainer):
             f.write(str(self.connection.port))
         
         
-    def open(self,password):
+    def open(self,password=None):
         if (self.isopen()):
             logger.info("Open (already open): %s",self.dbfolder)
             portnm = 0
