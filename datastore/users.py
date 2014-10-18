@@ -17,14 +17,7 @@ inputs: The inputs to the database that the uid registers. In general, inputs do
         of any type. A registered input is constrained to within the registered type/range. It allows analysis
         algorithms to normalize and process the data. Registering inputs also allows easy finding of the most common inputs
         {
-            inputname: {
-                type: The input's type. Allowed are string,int,float,numpy
-                <: The max value of the input (for strings, this is a length)
-                >: The minimum value of the input
-                hint: [] array of strings which "hint" at the algorithms which can be good for analysis/compression of the data
-                error: The maximum allowed error in the value (if the value is in the compress collection)
-
-            }
+            inputname: {metadata}
         }
 """
 
@@ -49,6 +42,8 @@ class usr(object):
             self.__read.remove("db")
 
         self.__write = data["write"]
+
+        self.__inputs = data["inputs"]
 
         #All is initialized. Shit's cool
 
@@ -103,6 +98,38 @@ class usr(object):
 
     id = property(getID)
 
+    #Functions for manipulating input - these are quite brutal in the way they work.
+    #The goal is to create functions which will make very basic modifications possible
+    #There should be a further class which wraps the inputs.
+
+    def addInput(self,name,meta={}):
+        #Adds an input with the given name and given metadata to the register
+        self.db.update({"_id":self.__id},{"$set": {"inputs."+name: meta}},upsert=False)
+        self.__inputs[name] = meta
+
+    def remInput(self,name):
+        #Removes the input with the given name from the register
+        if (name in self.__inputs):
+            self.db.update({"_id":self.__id},{"$unset": {"inputs."+name: ""}},upsert=False)
+            del self.__inputs[name]
+
+    def setInput(self,name,meta):
+        #Sets the input with the given name with meta
+        if (name in self.__inputs):
+            self.db.update({"_id":self.__id},{"$set": {"inputs."+name: meta}},upsert=False)
+            self.__inputs[name] = meta
+        else: raise Exception("Could not find the given input")
+
+    def getInput(self,name):
+        #Gets the input with the given name. Returns None if no input exists
+        if (name in self.__inputs):
+            return self.__inputs[name]
+        return None
+
+    def inputlist(self):
+        #Returns a list of all registered input names
+        return self.__inputs.keys()
+
     def delete(self):
         #Deletes the entire record
         self.db.remove({"_id": self.__id})
@@ -144,7 +171,7 @@ class Users(object):
             secret = uuid.uuid4().hex
         if (read == True):
             read=["db"]
-        r = self.p.insert({"_id": ObjectId(uid),"secret": secret,"read": read,"write": write})
+        r = self.p.insert({"_id": ObjectId(uid),"secret": secret,"read": read,"write": write,"inputs":{}})
         return usr(self.p.find_one({"_id": r}),self.p)
 
 
@@ -195,6 +222,29 @@ if (__name__=="__main__"):
     f.write = True
     assert f.write==True
 
+    #Now test the inputs
+    assert len(f.inputlist())==0
+
+    assert f.getInput("hi")==None
+
+    f.addInput("hello")
+    f.addInput("world",{"gg":4,"ho": ["fg",33]})
+    f.addInput("dude",{"foo":"bar"})
+
+    assert len(f.inputlist())==3
+    assert f.getInput("hello")!=None
+    assert f.getInput("world")["ho"][1]==33
+    assert f.getInput("dude")["foo"]=="bar"
+
+    f.setInput("dude",{"gram":3})
+
+    assert not ("foo" in f.getInput("dude"))
+    assert f.getInput("dude")["gram"]==3
+
+    f.remInput("dude")
+
+    assert f.getInput("dude") == None
+
     g = p(f.id,f.secret)
 
     assert f == g
@@ -206,6 +256,15 @@ if (__name__=="__main__"):
     assert g.read("trolo") ==True
     g.read("trolo",False)
     assert g.read("trolo") == False
+
+    assert len(g.inputlist())==2
+    assert g.getInput("hello")!=None
+    assert g.getInput("world")["ho"][1]==33
+    assert g.getInput("dude")==None
+
+    g.addInput("ra",{"men":"yum"})
+
+    assert g.getInput("ra")["men"]=="yum"
 
     i = f.id
     c.close()
@@ -221,6 +280,13 @@ if (__name__=="__main__"):
     assert h.read("safdfsad")==False
     assert h.read("aardvark")==True
     assert h.read("trolo") == False
+
+    assert len(h.inputlist())==3
+    assert h.getInput("hello")!=None
+    assert h.getInput("world")["ho"][1]==33
+    assert h.getInput("dude")==None
+
+
     assert q.get(uuid.uuid4().hex[:24])==None
     h.delete()
 
