@@ -76,6 +76,10 @@ class DatabaseContainer(object):
         self.crypto.panic()
         os.rmdir(self.decloc)
 
+    def delete(self):
+        self.panic()
+        os.remove(self.datafile)
+
 if (__name__=="__main__"):
     DatabaseContainer.fileLocation = "./test_db"
     DatabaseContainer.tmpLocation = "./test_tmp"

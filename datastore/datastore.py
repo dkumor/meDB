@@ -1,5 +1,8 @@
-from database.cryptomongo import MongoContainer
+
 import os
+
+#The encrypted mongoDB database container
+from database.cryptomongo import MongoContainer
 
 #Imports the structures of the database
 from users import Users
@@ -39,6 +42,9 @@ class DataStore(object):
         #Basically forces immediate unmounting and encrytion - only for emergencies, as can cause data loss
         self.container.panic()
 
+    def delete(self):
+        #Removes the entire container. In case you didn't notice, this causes irreversible data loss
+        self.container.delete()
 
 
 if (__name__=="__main__"):
@@ -56,6 +62,14 @@ if (__name__=="__main__"):
         shutil.rmtree(MongoContainer.fileLocation)
     if (os.path.exists(MongoContainer.tmpLocation)):
         shutil.rmtree(MongoContainer.tmpLocation)
+
+    err=False
+    try:
+        d = DataStore(dname,dpwd)   #Create should be unset
+    except Exception as e:
+        print e
+        err=True
+    assert err==True
 
     d = DataStore(dname,dpwd,create=True)
 
