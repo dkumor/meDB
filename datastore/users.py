@@ -94,7 +94,7 @@ class usr(object):
     secret = property(getSecret,setSecret)
 
     def getID(self):
-        return str(self.__id)
+        return self.__id
 
     id = property(getID)
 
@@ -135,10 +135,10 @@ class usr(object):
         self.db.remove({"_id": self.__id})
 
     def __eq__(self,x):
-        return self.id == str(x)
+        return str(self) == str(x)
 
     def __str__(self):
-        return self.id
+        return str(self.id)
 
 class Users(object):
     """
