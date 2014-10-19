@@ -66,6 +66,7 @@ class MongoContainer(DatabaseContainer):
             self.cur = mongo.getCursor(portnum)
         else:
             logger.info("Open (decrypt): %s",self.dbfolder)
+            if (password is None): raise Exception("Container needs password for decryption")
             DatabaseContainer.open(self,password)
             self.isopener = True
 

@@ -1,4 +1,5 @@
 from database.cryptomongo import MongoContainer
+import os
 
 #Imports the structures of the database
 from users import Users
@@ -60,9 +61,14 @@ if (__name__=="__main__"):
 
     d2 = DataStore(dname)
 
+    u = d.users.create(secret="lolz",read=["db",],write=True).id
+
+    assert d2.users(u,"lolz") != None
+
     d2.close()
 
     #d should still work
+    assert d.users(u,"lolz") != None
 
     d.close()
 
@@ -70,6 +76,9 @@ if (__name__=="__main__"):
     err=False
     try:
         d = DataStore(dname)
-    except:
+    except Exception as e:
+        print e
         err=True
     assert err==True
+
+    print "\n\nAll tests completed successfully!"
