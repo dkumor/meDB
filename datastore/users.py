@@ -116,8 +116,7 @@ class usr(object):
     def setInput(self,name,meta):
         #Sets the input with the given name with meta
         if (name in self.__inputs):
-            self.db.update({"_id":self.__id},{"$set": {"inputs."+name: meta}},upsert=False)
-            self.__inputs[name] = meta
+            self.addInput(name,meta)
         else: raise Exception("Could not find the given input")
 
     def getInput(self,name):
