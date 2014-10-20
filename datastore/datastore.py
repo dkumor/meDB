@@ -13,7 +13,6 @@ class DataStore(object):
         #Given an ID of the datastore, connect to it.
         #If given a password, open if possible. If given password and size, create if necessary.
 
-
         #Opens the container - and creates it if necessary
         self.__container = MongoContainer(container)
         if not (self.__container.exists()):
@@ -26,7 +25,7 @@ class DataStore(object):
 
         #Make sure that the dbid exists in the database if we are not to create a new one
         if (create==False):
-            if not (dbid in self.__container.cursor().database_names()):
+            if not (dbid in self.list()):
                 self.close()
                 raise Exception("The database ID does not exist")
 
@@ -65,7 +64,7 @@ class DataStore(object):
     def size(self):
         #Returns the total space that the database takes up
         return self.stats()["storageSize"]
-        
+
     def list(self):
         #Lists the database names
         return self.__container.cursor().database_names()
@@ -76,6 +75,11 @@ class DataStore(object):
     def getDb(self):
         return self.__db.name
     database = property(getDb)
+
+    """
+        Static methods - they allow manipulation of datastores without the intention of actually reading the
+        data, or logging in as any user.
+    """
 
     #Whether or not the container exists and is open
     @staticmethod
@@ -101,6 +105,7 @@ class DataStore(object):
             container.close()
             return result
         return False
+        
     @staticmethod
     def ddelete(containername,dbid,password=None):
         container = MongoContainer(containername)
@@ -108,9 +113,10 @@ class DataStore(object):
             container.open(password)
             container.cursor().drop_database(dbid)
             container.close()
-            return result
+
     @staticmethod
     def dlist(containername,password=None):
+        #Lists the databases within the container
         container = MongoContainer(containername)
         if (container.exists()):
             container.open(password)
