@@ -80,6 +80,9 @@ class DatabaseContainer(object):
         self.panic()
         os.remove(self.datafile)
 
+    def name(self):
+        return self.dbid
+
 if (__name__=="__main__"):
     DatabaseContainer.fileLocation = "./test_db"
     DatabaseContainer.tmpLocation = "./test_tmp"
