@@ -70,11 +70,13 @@ class DatabaseContainer(object):
 
     def close(self):
         self.crypto.close()
-        os.rmdir(self.decloc)   #Deletes the decryption directory
+        if (os.path.isdir(self.decloc)):    #Deletes the decryption directory
+            os.rmdir(self.decloc)
 
     def panic(self):
         self.crypto.panic()
-        os.rmdir(self.decloc)
+        if (os.path.isdir(self.decloc)):
+            os.rmdir(self.decloc)
 
     def delete(self):
         self.panic()

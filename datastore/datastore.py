@@ -50,6 +50,11 @@ class DataStore(object):
         self.__container.panic()
 
     def delete(self):
+        #Removes the entire database. Does not delete the container
+        self.__container.cursor().drop_database(self.database)
+        self.close()    #A DataStore is useless without its database
+
+    def deleteContainer(self):
         #Removes the entire container. In case you didn't notice, this causes irreversible data loss
         self.__container.delete()
 
@@ -60,6 +65,10 @@ class DataStore(object):
     def size(self):
         #Returns the total space that the database takes up
         return self.stats()["storageSize"]
+        
+    def list(self):
+        #Lists the database names
+        return self.__container.cursor().database_names()
 
     def getContainer(self):
         return self.__container.name()
@@ -77,6 +86,11 @@ class DataStore(object):
     def cisopen(containername):
         container = MongoContainer(containername)
         return container.isopen()
+    @staticmethod
+    def cdelete(containername):
+        container = MongoContainer(containername)
+        container.delete()
+
     #Whether or not the given database exists in the given container
     @staticmethod
     def dexists(containername,dbid,password=None):
@@ -87,6 +101,14 @@ class DataStore(object):
             container.close()
             return result
         return False
+    @staticmethod
+    def ddelete(containername,dbid,password=None):
+        container = MongoContainer(containername)
+        if (container.exists()):
+            container.open(password)
+            container.cursor().drop_database(dbid)
+            container.close()
+            return result
     @staticmethod
     def dlist(containername,password=None):
         container = MongoContainer(containername)
@@ -156,6 +178,7 @@ if (__name__=="__main__"):
     dstats = d.stats()
     d.close()
 
+
     #trying to open buffer that is not decrypted should fail
     err=False
     try:
@@ -170,6 +193,16 @@ if (__name__=="__main__"):
     assert DataStore.dexists(cname,dname,cpwd) ==True
     assert DataStore.dexists(cname,"dbshouldntexist",cpwd) ==False
 
+    d = DataStore(cname,dname,cpwd)
+    d.delete()
+
+    assert DataStore.cexists(cname) == True
+    assert DataStore.cisopen(cname) == False
+    assert DataStore.dexists(cname,dname,cpwd) ==False
+
+    DataStore.cdelete(cname)
+
+    assert DataStore.cexists(cname) == False
 
     print dstats
 
