@@ -105,7 +105,7 @@ class DataStore(object):
             container.close()
             return result
         return False
-        
+
     @staticmethod
     def ddelete(containername,dbid,password=None):
         container = MongoContainer(containername)
@@ -172,7 +172,7 @@ if (__name__=="__main__"):
     assert d2.database == dname
     assert d2.container == cname
 
-    u = d.users.create(secret="lolz",read=["db",],write=True).id
+    u = d.users.create(secret="lolz",write=True).id
 
     assert d2.users(u,"lolz") != None
 

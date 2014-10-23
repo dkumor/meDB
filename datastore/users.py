@@ -1,17 +1,33 @@
-
-
-import uuid
-from bson.objectid import ObjectId
 """
 The user data structure is as follows:
 
 _id: the uid
 secret: The "password" which gives access to the uid
 
-read: [] #Array. Can contain either:
-        1) "db" - can read contents of database from any uid
-        2) uid - Can read data from the given uid
-write: T/F : Whether or not allowed to write to the database
+perm:   The permissions  of this user with respect to other users
+        {
+            uid: {
+                r: Read data that the user wrote (as well as the registered inputs)
+                o: Read the user's outputs (including output metadata)
+                to: Trigger the user's outputs (ie, write to the outputs). Implies 'o'
+                p: Read the user's permissions
+                s: Read the user's secret
+                wp: Write user's permissions (can only enable permissions it itself has)
+                ws: Write the user's secret
+                wr: Write the user's registered inputs (ie, allows another user to register inputs)
+                wo: Write the user's outputs (ie, allows another user to create/modify outputs)
+                d: Can delete user
+            }
+        }
+        1) "db" - sets permissions database-wide
+        2) uid - sets permissions for the given uid
+
+write: T/F : Whether or not allowed to write _data_ to the database
+
+create: T/F : Whether or not allowed to create user. The new user can only have permissions <= creating user
+
+outputs: [] : Specific IDs of outputs that the user is allowed to trigger. This is similar to the 'to' permission,
+        but here, it is not per-user, but rather a specific list of outputs
 
 inputs: The inputs to the database that the uid registers. In general, inputs do not need to be registered, and can be
         of any type. A registered input is constrained to within the registered type/range. It allows analysis
@@ -21,6 +37,9 @@ inputs: The inputs to the database that the uid registers. In general, inputs do
         }
 """
 
+import uuid
+from bson.objectid import ObjectId
+
 class usr(object):
     #The user info for each object being accessed are stored in memory in the form of this object
     #The object modifies the database when things are set/unset
@@ -29,69 +48,119 @@ class usr(object):
     #   the object needs to be reloaded for changes in the database not initiated through this object to be seen.
     def __init__(self,data,db):
         self.db = db
-        #First, let's set the uid
+
         self.__id  = data["_id"]
         self.__secret = data["secret"]
-
-        #Read the permissions
-        self.__read = data["read"]
-        self.__readall = ("db" in self.__read)
-
-        #List of sids shouldn't include "db"
-        if (self.__readall):
-            self.__read.remove("db")
-
+        self.__perm = data["perm"]
         self.__write = data["write"]
-
+        self.__create = data["create"]
+        self.__outputs = data["outputs"]
         self.__inputs = data["inputs"]
 
         #All is initialized. Shit's cool
 
+    #WRITE and CREATE are properties of the user. They can be get/set using usr.write and usr.create
     def getWrite(self):
         return self.__write
     def setWrite(self,s):
         if (s!= self.__write):
             self.db.update({"_id":self.__id},{"$set":{"write": s}},upsert=False)
             self.__write = s
-
     write = property(getWrite,setWrite,doc="Whether or not the accessor has write permissions")
-
-    def read(self,uid,newval=None):
-        if (newval==None):
-            if (self.__readall): return True
-            return (uid in self.__read)
-
-        elif (newval == True and not (uid in self.__read)):
-            self.__read.append(uid)
-            self.db.update({"_id":self.__id},{"$addToSet":{"read": uid}},upsert=False)
-
-        elif (newval ==False): #newval == false
-            if (uid in self.__read):
-                self.__read.remove(uid)
-
-            self.db.update({"_id":self.__id},{"$pull":{"read": uid}})
-
-    def readlist(self):
-        return self.__read
-
-    def getReadall(self):
-        return self.__readall
-    def setReadall(self,v):
-        self.__readall = v
-        if (v==True):
-            self.db.update({"_id":self.__id},{"$addToSet":{"read": "db"}},upsert=False)
-        else:
-            self.db.update({"_id":self.__id},{"$pull":{"read": "db"}})
-
-    readall = property(getReadall,setReadall)
-
+    def getCreate(self):
+        return self.__create
+    def setCreate(self,s):
+        if (s!= self.__create):
+            self.db.update({"_id":self.__id},{"$set":{"create": s}},upsert=False)
+            self.__create = s
+    create = property(getCreate,setCreate,doc="Whether or not accessor allowed to create users")
+    #SECRET is also a property of the user
     def getSecret(self):
         return self.__secret
     def setSecret(self,s):
         self.db.update({"_id":self.__id},{"$set":{"secret": s}},upsert=False)
         self.__secret = s
-
     secret = property(getSecret,setSecret)
+
+    def output(self,oid,newval=None):
+        #Read and write output-toggling permissions for specific outputs
+        hasoutput = (oid in self.__outputs)
+        if (newval==None):
+            return hasoutput
+        elif (newval == True and not hasoutput):
+            self.db.update({"_id":self.__id},{"$addToSet":{"outputs": ObjectId(oid)}},upsert=False)
+            self.__outputs.append(oid)
+        elif (newval == False):
+            #Remove it even if it isn't there, just in case it was inserted since we checed
+            self.db.update({"_id":self.__id},{"$pull":{"outputs": ObjectId(oid)}})
+            if (hasoutput): #We need to check if it exists to remove here
+                self.__outputs.remove(oid)
+
+    def outputlist(self):
+        #Returns the list of IDs for the outputs that the user is allowed to toggle
+        return self.__outputs
+
+    def __permSet(self,perm,uid,newval):
+        #Gets/sets the permission queried in "perm"
+        hasid = (uid in self.__perm)
+        hasperm = False
+        if (hasid): hasperm = (perm in self.__perm[uid])
+
+        if (newval is None):
+            #We just get the permissions
+            return (hasid and hasperm)
+        elif (newval==True):
+            if not (hasid):
+                #We add both the id and the permission in one go
+                self.db.update({"_id":self.__id},{"$set": {"perm."+str(uid): {perm: True}}},upsert=False)
+                self.__perm[str(uid)] = {perm: True}
+            elif not (hasperm):
+                #The ID exists - so we just add the permission
+                self.db.update({"_id":self.__id},{"$set": {"perm."+str(uid)+"."+perm: True}},upsert=False)
+                self.__perm[str(uid)][perm] = True
+        elif (hasid and hasperm):
+            #Newval is False - if we are to remove something, this is the place to do it
+            if (len(self.__perm[uid])<=1):
+                #This permission is the only one for the given ID - so we delete the entire ID
+                self.db.update({"_id":self.__id},{"$unset": {"perm."+str(uid): ""}},upsert=False)
+                del self.__perm[str(uid)]
+            else:
+                #There are more permissions for the ID, so just delete this specific one
+                self.db.update({"_id":self.__id},{"$unset": {"perm."+str(uid)+"."+perm: ""}},upsert=False)
+                del self.__perm[str(uid)][perm]
+        #All changes were implemented
+        return None
+
+
+
+    #Getting and setting permissions for the user with regards to other specific users
+    def pRead(self,uid,newval=None):
+        return self.__permSet("r",uid,newval)
+    def pReadOut(self,uid,newval=None):
+        return self.__permSet("o",uid,newval)
+    def pTriggerOut(self,uid,newval=None):
+        return self.__permSet("to",uid,newval)
+    def pReadPerm(self,uid,newval=None):
+        return self.__permSet("p",uid,newval)
+    def pReadSecret(self,uid,newval=None):
+        return self.__permSet("s",uid,newval)
+    def pWritePerm(self,uid,newval=None):
+        return self.__permSet("wp",uid,newval)
+    def pWriteSecret(self,uid,newval=None):
+        return self.__permSet("ws",uid,newval)
+    def pWriteInputs(self,uid,newval=None):
+        return self.__permSet("wr",uid,newval)
+    def pWriteOutputs(self,uid,newval=None):
+        return self.__permSet("wo",uid,newval)
+    def pDelete(self,uid,newval=None):
+        return self.__permSet("d",uid,newval)
+
+    def getperm(self,uid):
+        hasid = (uid in self.__perm)
+        if (hasid):
+            return self.__perm[uid]
+        return None
+
 
     def getID(self):
         return self.__id
@@ -113,6 +182,11 @@ class usr(object):
             self.db.update({"_id":self.__id},{"$unset": {"inputs."+name: ""}},upsert=False)
             del self.__inputs[name]
 
+    def clrInputs(self):
+        #Clears the inputs
+        self.db.update({"_id":self.__id},{"$set": {"inputs": {}}},upsert=False)
+        self.__inputs = {}
+
     def setInput(self,name,meta):
         #Sets the input with the given name with meta
         if (name in self.__inputs):
@@ -125,12 +199,49 @@ class usr(object):
             return self.__inputs[name]
         return None
 
+    #Allows to get/set/delete values in the input's register freely.
+    def input(self,name,getv=None,setv=None,delv=None,create=True):
+        #Gets/sets the input's value at the given path
+        n = self.getInput(name)
+        if (n is None): #The input does not exist yet
+            if (create==False):
+                raise Exception("Could not find the given input")
+            else:
+                self.addInput(name,setv)
+                n = self.getInput(name)
+        elif (setv is not None):
+            #We set the input
+            s = {}
+            for key in setv:
+                s["inputs."+str(name)+"."+key] = setv[key]
+                n[key] = setv[key]
+            self.db.update({"_id":self.__id},{"$set": s},upsert=False)
+
+        if (delv is not None):
+            s = {}
+            for v in delv:
+                s["inputs."+str(name)+"."+v] = ""
+                if (v in n):
+                    del n[v]
+            self.db.update({"_id":self.__id},{"$unset": s},upsert=False)
+
+        if (getv is not None):
+            #Get the values it asks for
+            for key in getv:
+                if (key in n):
+                    getv[key] = n[key]
+                else:
+                    getv[key] = None
+            return getv
+        return None
+
+
     def inputlist(self):
         #Returns a list of all registered input names
         return self.__inputs.keys()
 
     def delete(self):
-        #Deletes the entire record
+        #Deletes the entire record for the usert
         self.db.remove({"_id": self.__id})
 
     def __eq__(self,x):
@@ -161,16 +272,15 @@ class Users(object):
         if (res!=None):
             return usr(res,self.p)
         return None
-    def create(self,uid=None,secret=None,read = [],write = False):
+    def create(self,uid=None,secret=None,perm = {},write = False,create=False,outputs=[]):
         if (uid==None):
             uid = uuid.uuid4().hex[:24]
         else:
             if not ObjectId.is_valid(uid): return None
         if (secret==None):
             secret = uuid.uuid4().hex
-        if (read == True):
-            read=["db"]
-        r = self.p.insert({"_id": ObjectId(uid),"secret": secret,"read": read,"write": write,"inputs":{}})
+        r = self.p.insert({"_id": ObjectId(uid),"secret": secret,"perm": perm,"write": write,"create": create,
+                    "outputs": outputs, "inputs":{}})
         return usr(self.p.find_one({"_id": r}),self.p)
 
 
@@ -192,34 +302,40 @@ if (__name__=="__main__"):
     assert p(uuid.uuid4().hex[:24],"fdfsfsd")==None
     assert p.get(uuid.uuid4().hex[:24])==None
 
-    e = p.create(read=True,write=False)
+    e = p.create(write=False,create=True)
 
     f = p.get(e.id)
 
     assert e==f
 
+    assert f.pRead("safdfsad") == False
+    f.pRead("safdfsad",True)
+    f.pReadOut("safdfsad",True)
+
     assert f.write == False
-    assert f.read("safdfsad")==True
+    assert f.create == True
+    assert f.pRead("safdfsad")==True
+    assert f.pReadOut("safdfsad")==True
+    assert f.pReadPerm("safdfsad")==False
 
     assert f.secret == e.secret
     f.secret = "hlop"
     assert f.secret == "hlop"
-    assert f.readall == True
+    assert f.pRead("testing") == False
 
-    f.readall = False
+    f.pRead("safdfsad",False)
 
-    assert f.readall ==False
-    assert f.read("safdfsad")==False
-    f.read("aardvark",True)
-    f.read("trolo",True)
-    assert f.read("aardvark")==True
+    assert f.pRead("db") ==False
+    assert f.pRead("safdfsad")==False
+    f.pRead("aardvark",True)
+    f.pRead("trolo",True)
+    assert f.pRead("aardvark")==True
 
-    assert len(f.readlist())==2
-    assert "aardvark" in f.readlist()
-    assert "trolo" in f.readlist()
 
     f.write = True
+    f.create = False
     assert f.write==True
+    assert f.create == False
 
     #Now test the inputs
     assert len(f.inputlist())==0
@@ -248,13 +364,17 @@ if (__name__=="__main__"):
 
     assert f == g
     assert g.secret == "hlop"
-    assert g.readall == False
     assert g.write == True
-    assert g.read("safdfsad")==False
-    assert g.read("aardvark")==True
-    assert g.read("trolo") ==True
-    g.read("trolo",False)
-    assert g.read("trolo") == False
+    assert g.pRead("safdfsad")==False
+    assert g.pRead("aardvark")==True
+    assert g.pRead("trolo") ==True
+    g.pRead("trolo",False)
+    assert g.pRead("trolo") == False
+    assert g.pReadOut("safdfsad")==True
+
+    g.pReadOut("safdfsad",False)
+
+    assert g.pReadOut("safdfsad")==False
 
     assert len(g.inputlist())==2
     assert g.getInput("hello")!=None
@@ -265,6 +385,13 @@ if (__name__=="__main__"):
 
     assert g.getInput("ra")["men"]=="yum"
 
+    assert g.input("ra",getv={"men":None,'dudes': None})["men"]=="yum"
+    assert g.input("ra",getv={"men":None,'dudes': 1})["dudes"]==None
+    g.input("ra",setv={"men": "pf","dudes": 1337})
+
+    assert g.input("ra",getv={"men":None,'dudes': None})["men"]=="pf"
+    assert g.input("ra",getv={"men":None,'dudes': 1})["dudes"]==1337
+
     i = f.id
     c.close()
     c = Connection(testname)
@@ -274,17 +401,19 @@ if (__name__=="__main__"):
     h = q(i,"hlop")
     assert h != None
     assert h.secret == "hlop"
-    assert h.readall == False
     assert h.write == True
-    assert h.read("safdfsad")==False
-    assert h.read("aardvark")==True
-    assert h.read("trolo") == False
+    assert h.pRead("safdfsad")==False
+    assert h.pRead("aardvark")==True
+    assert h.pRead("trolo") == False
 
     assert len(h.inputlist())==3
     assert h.getInput("hello")!=None
     assert h.getInput("world")["ho"][1]==33
     assert h.getInput("dude")==None
 
+
+    assert h.input("ra",getv={"men":None,'dudes': None})["men"]=="pf"
+    assert h.input("ra",getv={"men":None,'dudes': 1})["dudes"]==1337
 
     assert q.get(uuid.uuid4().hex[:24])==None
     h.delete()

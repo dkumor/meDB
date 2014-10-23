@@ -1,7 +1,3 @@
-import pymongo
-import time
-from bson.objectid import ObjectId
-
 """
 The Documents data structure is as follows:
 
@@ -10,6 +6,10 @@ uid: the id of the owner
 data: {} The structure which contains data formatted in json
 time: timestamp
 """
+
+import pymongo
+import time
+from bson.objectid import ObjectId
 
 class Documents(object):
     def __init__(self,db,dbname="documents"):
