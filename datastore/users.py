@@ -7,9 +7,8 @@ secret: The "password" which gives access to the uid
 perm:   The permissions  of this user with respect to other users
         {
             uid: {
-                r: Read data that the user wrote (as well as the registered inputs)
-                o: Read the user's outputs (including output metadata)
-                to: Trigger the user's outputs (ie, write to the outputs). Implies 'o'
+                r: Read data that the user wrote (including things it triggered, and its registered inputs/outputs)
+                o: Trigger the user's outputs
                 p: Read the user's permissions
                 s: Read the user's secret
                 wp: Write user's permissions (can only enable permissions it itself has)
@@ -23,18 +22,33 @@ perm:   The permissions  of this user with respect to other users
         2) uid - sets permissions for the given uid
 
 write: T/F : Whether or not allowed to write _data_ to the database
+wunreg: T/F : If write is true, is the user allowed to write unregistered data to the database?
 
 create: T/F : Whether or not allowed to create user. The new user can only have permissions <= creating user
 
-outputs: [] : Specific IDs of outputs that the user is allowed to trigger. This is similar to the 'to' permission,
+trigger: [] : Specific IDs of outputs that the user is allowed to trigger. This is similar to the 'o' permission,
         but here, it is not per-user, but rather a specific list of outputs
 
 inputs: The inputs to the database that the uid registers. In general, inputs do not need to be registered, and can be
         of any type. A registered input is constrained to within the registered type/range. It allows analysis
         algorithms to normalize and process the data. Registering inputs also allows easy finding of the most common inputs
-        {
-            inputname: {metadata}
+
+
+outputs: The outputs from the database that the uid registers. Outputs require registration.
+
+Inputs and outputs have data of the following format:
+
+[
+    {
+        id: The ObjectID of the registered input/output (identifier written with each data piece)
+        parts: {
+            partname: {metadata}
         }
+        meta: {metadata}
+    }
+]
+
+
 """
 
 import uuid
@@ -53,11 +67,16 @@ class usr(object):
         self.__secret = data["secret"]
         self.__perm = data["perm"]
         self.__write = data["write"]
+        self.__wunreg = data["wunreg"]
         self.__create = data["create"]
+        self.__trigger = data["trigger"]
+
         self.__outputs = data["outputs"]
         self.__inputs = data["inputs"]
 
         #All is initialized. Shit's cool
+
+        self.rset = None #We keep a set of the permitted readers, which is updated when necessary
 
     #WRITE and CREATE are properties of the user. They can be get/set using usr.write and usr.create
     def getWrite(self):
@@ -67,6 +86,14 @@ class usr(object):
             self.db.update({"_id":self.__id},{"$set":{"write": s}},upsert=False)
             self.__write = s
     write = property(getWrite,setWrite,doc="Whether or not the accessor has write permissions")
+    def getWriteUnregistered(self):
+        return self.__wunreg
+    def setWriteUnregistered(self,s):
+        if (s!= self.__wunreg):
+            self.db.update({"_id":self.__id},{"$set":{"wunreg": s}},upsert=False)
+            self.__write = s
+    writeunregistered = property(getWriteUnregistered,setWriteUnregistered,doc="Whether or not the accessor is allowed to write unregistered input")
+
     def getCreate(self):
         return self.__create
     def setCreate(self,s):
@@ -82,23 +109,23 @@ class usr(object):
         self.__secret = s
     secret = property(getSecret,setSecret)
 
-    def output(self,oid,newval=None):
+    def trigger(self,oid,newval=None):
         #Read and write output-toggling permissions for specific outputs
-        hasoutput = (oid in self.__outputs)
+        hasoutput = (oid in self.__trigger)
         if (newval==None):
             return hasoutput
         elif (newval == True and not hasoutput):
-            self.db.update({"_id":self.__id},{"$addToSet":{"outputs": ObjectId(oid)}},upsert=False)
-            self.__outputs.append(oid)
+            self.db.update({"_id":self.__id},{"$addToSet":{"trigger": ObjectId(oid)}},upsert=False)
+            self.__trigger.append(oid)
         elif (newval == False):
             #Remove it even if it isn't there, just in case it was inserted since we checed
-            self.db.update({"_id":self.__id},{"$pull":{"outputs": ObjectId(oid)}})
+            self.db.update({"_id":self.__id},{"$pull":{"trigger": ObjectId(oid)}})
             if (hasoutput): #We need to check if it exists to remove here
-                self.__outputs.remove(oid)
+                self.__trigger.remove(oid)
 
-    def outputlist(self):
+    def triggerlist(self):
         #Returns the list of IDs for the outputs that the user is allowed to toggle
-        return self.__outputs
+        return self.__trigger
 
     def __permSet(self,perm,uid,newval):
         #Gets/sets the permission queried in "perm"
@@ -135,11 +162,11 @@ class usr(object):
 
     #Getting and setting permissions for the user with regards to other specific users
     def pRead(self,uid,newval=None):
+        if (newval is not None):    #The set of valid readers is no longer valid
+            self.rset = None
         return self.__permSet("r",uid,newval)
-    def pReadOut(self,uid,newval=None):
+    def pTrigger(self,uid,newval=None):
         return self.__permSet("o",uid,newval)
-    def pTriggerOut(self,uid,newval=None):
-        return self.__permSet("to",uid,newval)
     def pReadPerm(self,uid,newval=None):
         return self.__permSet("p",uid,newval)
     def pReadSecret(self,uid,newval=None):
@@ -162,6 +189,17 @@ class usr(object):
         return None
 
 
+    def readset(self):
+        if (self.rset is None): #We cache the set of valid readers
+            l = []
+            for key in self.__perm:
+                if ("r" in self.__perm[key]):
+                    l.append(key)
+            self.rset = set(l)
+
+        return self.rset
+
+
     def getID(self):
         return self.__id
 
@@ -170,6 +208,19 @@ class usr(object):
     #Functions for manipulating input - these are quite brutal in the way they work.
     #The goal is to create functions which will make very basic modifications possible
     #There should be a further class which wraps the inputs.
+
+    #Functions for modifying input and output registrations.
+    def addIO(self,io,parts,meta={}):
+        doc = {"id": ObjectId(uuid.uuid4().hex[:24]), "meta": meta, "parts": parts}
+        self.db.update({"_id":self.__id},{"$addToSet":{io: doc}},upsert=False)
+        return doc
+    def remIO(self,io,ioid):
+        self.db.update({"_id":self.__id},{"$pull":{io: {"id": ioid}}},upsert=False)
+    def clrIO(self,io):
+        self.db.update({"_id":self.__id},{"$set": {io: []}},upsert=False)
+    def metaIO(self,io,ioid,getv=None,setv=None,delv=None):
+        pass
+
 
     def addInput(self,name,meta={}):
         #Adds an input with the given name and given metadata to the register

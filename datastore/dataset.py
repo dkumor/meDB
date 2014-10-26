@@ -1,5 +1,5 @@
 """
-The Documents data structure is as follows:
+The Inputs data structure is as follows:
 
 _id: randomly renerated identifier
 uid: the id of the owner
@@ -11,8 +11,8 @@ import pymongo
 import time
 from bson.objectid import ObjectId
 
-class Documents(object):
-    def __init__(self,db,dbname="documents"):
+class Inputs(object):
+    def __init__(self,db,dbname="inputs"):
         self.c = db[dbname]
         #Make sure that an index exists
         self.c.create_index([("uid",pymongo.DESCENDING),("time",pymongo.DESCENDING)])
@@ -96,7 +96,7 @@ if (__name__=="__main__"):
 
     c = Connection(testname)
 
-    d = Documents(c.cursor().db)
+    d = Inputs(c.cursor().db)
 
     assert len(d)==0
     assert d.get(user1).count() == 0

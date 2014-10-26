@@ -6,7 +6,7 @@ from database.cryptomongo import MongoContainer
 
 #Imports the structures of the database
 from users import Users
-from documents import Documents
+from inputs import Inputs
 
 class DataStore(object):
     def __init__(self,container,dbid,password=None,size=2048,create=False):
@@ -34,7 +34,7 @@ class DataStore(object):
 
         #Initialize the collections
         self.users = Users(self.__db)
-        self.documents = Documents(self.__db)
+        self.inputs = Inputs(self.__db)
 
 
     #Methods of closing the datastore
