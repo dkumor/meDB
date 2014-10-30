@@ -2,142 +2,90 @@
 import threading
 import time
 
-import luks
+import multiluks
 
-containers = {}
-ctrmtx = threading.Lock()
-def runcommand(cmd,pipe,m,usr):
-    global containers
-    global ctrmtx
 
-    out = "OK"
-    setnone = False
+def runcommand(cmd,pipe,pipelock,luks):
+    out = "OK"  #The output of a successful command is "OK"
+
     try:
         if (cmd["cmd"] == "create"):
-            logger.info("LUKSCreate %(container)s (%(size)sM)-> %(mountpoint)s",cmd)
+            logger.info("LUKSCreate %(container)s (%(size)sM)",cmd)
+            luks.create(cmd["container"],cmd["pass"],cmd["size"])
 
-            ctrmtx.acquire()
-            if (cmd["container"] in containers):
-                ctrmtx.release()
-                raise Exception("Container already created")
-            containers[cmd['container']] = None #Set to None to signify that we are creating it
-            setnone = True
-            ctrmtx.release()
-
-            lcntnr= luks.CryptoLuks(cmd["container"],cmd["mountpoint"])
-            lcntnr.create(cmd["pass"],owner=usr,fsize=cmd["size"])
-            containers[cmd['container']] = lcntnr
         elif (cmd["cmd"] == "open"):
-            logger.info("LUKSOpen %(container)s -> %(mountpoint)s",cmd)
-            opn = False
+            logger.info("LUKSOpen %(container)s",cmd)
+            luks.open(cmd["container"],cmd["pass"])
 
-            while (cmd["container"] in containers and containers[cmd['container']] is None):
-                logger.info("LUKSOpen waiting for %(container)s",cmd)
-                time.sleep(0.5)
-            ctrmtx.acquire()
-            if (cmd["container"] in containers):
-                ctrmtx.release()
-                logger.info("LUKSOpen (already open) %(container)s",cmd)
-            else:
-                containers[cmd['container']] = None #Set to None to signify that we are already opening it
-                setnone = True
-                ctrmtx.release()
-
-                lcntnr = luks.CryptoLuks(cmd["container"],cmd["mountpoint"])
-                lcntnr.open(cmd["pass"])
-                containers[cmd['container']] = lcntnr
         elif (cmd["cmd"] == "close"):
             logger.info("LUKSClose %(container)s",cmd)
-            while (cmd["container"] in containers and containers[cmd['container']] is None):
-                logger.info("LUKSClose waiting for %(container)s",cmd)
-                time.sleep(0.5)
-            ctrmtx.acquire()
-            if (cmd["container"] in containers):
-                containers[cmd["container"]].close()
-                del containers[cmd["container"]]
-            ctrmtx.release()
+            luks.close(cmd["container"])
+
         elif (cmd["cmd"] == "panic"):
 
             if (cmd["container"]=="*"):
                 logger.critical("CRYPTO TOTAL PANIC - HOLY FUCKING SHIT, WE'RE FUCKED")
-                ctrmtx.acquire()
-                while (len(containers)>0):
-                    for k in containers:
-                        if (containers[k] != None):
-                            containers[k].panic()
-                            del containers[k]
-                    if (len(containers)>0):
-                        logger.warning("TOTAL PANIC waiting for containers...")
-                        time.sleep(0.5)
-
-                logger.warning("All containers closed.")
+                luks.panicall()
+                logger.warning("PANIC: All containers closed.")
 
             else:
-                while (cmd["container"] in containers and containers[cmd['container']] is None):
-                    logger.warning("PANIC waiting for %(container)s",cmd)
-                    time.sleep(0.5)
-                ctrmtx.acquire()
-                if (cmd['container'] in containers):
-                    logger.warning(" %(container)s - PANIC",d)
-
-                    containers[cmd["container"]].panic()
-                    del containers[cmd["container"]]
-                    logger.warning(" %(container)s - closed",d)
-            ctrmtx.release()
-
+                logger.warning("PANIC - %(container)s",cmd)
+                luks.panic(cmd["container"])
+                logger.warning("PANIC %(container)s closed",cmd)
 
     except Exception, e:
         out = str(e)
-        #If there was an error, delete the placeholder
-        if (setnone==True and containers[cmd['container']]==None):
-            del containers[cmd['container']]
+
 
     #Send theid of the finished process
-    m.acquire()
+    pipelock.acquire()
     pipe.send((cmd["id"],out))
-    m.release()
+    pipelock.release()
 
 def run(pipe,logger,config):
-    global containers
 
-    logger.info("Running root process")
-    m = threading.Lock()
+    #First things first, set up luks
+    luks = multiluks.MultiLuks(config["user"],
+            os.path.join(config["datadir"],"db"),
+            os.path.join(config["datadir"],"mnt"))
 
-    thr = []
+    #The pipe is going to be accessed from multiple threads, so we need
+    #   to lock it
+    pipelock = threading.Lock()
+
+    #We keep an array of worker threads currently doing something
+    threads = []
 
     while (True):
-        r = pipe.recv()
-        logger.info("RECV: %s"%(str(r),))
 
-        #Make sure it isn't the shutdown signal
+        #Read command
+        r = pipe.recv()
+
+        #Shut down if we get the shutdown signal
         if (r=="EOF"):
             break
         else:
             #Each command is run in an independent python thread, so that many commands
             #   can be executed at the same time
-            t = threading.Thread(target=runcommand,args = (r,pipe,m,config["user"],))
+            t = threading.Thread(target=runcommand,args = (r,pipe,pipelock,luks))
             t.daemon =False
             t.start()
-            thr.append(t)
+            threads.append(t)
 
             #Remove finished threads
-            for t in my_threads:
+            for t in threads:
                 if not t.isAlive():
                     # get results from thtead
                     t.handled = True
-            thr = [t for t in thr if not t.handled]
+            threads = [t for t in threads if not t.handled]
 
     #Wait until all threads join
     logger.info("Waiting for threads to join")
-    for i in thr:
+    for i in threads:
         i.join()
     logger.info("Shutting down all containers")
-    for k in containers:
-        containers[k].panic()
-    containers.clear()
-
-
-    logger.info("Root process finished")
+    luks.panicall()
+    logger.info("Root command process finished")
 
 if (__name__=="__main__"):
     from multiprocessing import Process, Pipe
