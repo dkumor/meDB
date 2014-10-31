@@ -27,7 +27,7 @@ class MultiLuks(object):
     def chkpanic(self):
         if (self.ispanic): raise Exception("Panic mode enabled")
     def getluks(self,container):
-        return luks.CryptoLuks(os.path.join(self.filedir,container),self.mntdir)
+        return luks.CryptoLuks(os.path.join(self.filedir,container),os.path.join(self.mntdir,container))
     def registerOrDie(self,container):
         self.chkpanic()
         self.c_lock.acquire()

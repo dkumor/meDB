@@ -3,25 +3,22 @@ import os
 import mongo
 from container import DatabaseContainer
 
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger("MongoContainer")
-
 class MongoContainer(DatabaseContainer):
     """
     Opens a container and starts a mongoDB database within
     """
+    logger = None #The logger is initially set to None, but it must exist before init is called
     smallSize = 5000
     def __init__(self,dbid):
+        if (self.logger is None):
+            raise Exception("Logger is not set")
+
         DatabaseContainer.__init__(self,dbid)
-        self.isopener = False
 
         self.connection = None
         self.cur = None
 
         self.dbfolder = os.path.join(self.decloc,"db")
-        self.portfile = os.path.join(self.decloc,"port")
 
     def checkSize(self):
         dbsize = int(os.path.getsize(self.datafile)*1e-6)
@@ -30,12 +27,11 @@ class MongoContainer(DatabaseContainer):
         return (dbsize < self.smallSize)
 
     def create(self,password,size=10000):
-        logger.info("Create database: %s (%iM)",self.dbfolder,size)
+        self.logger.info("Create database: %s (%iM)",self.dbfolder,size)
         if (size < 1000):
             raise Exception("Given size too small for database")
 
         DatabaseContainer.create(self,password,size)
-        self.isopener = True
 
         #The container is now mounted, so we create the database folder (db)
         os.mkdir(self.dbfolder)
@@ -48,27 +44,14 @@ class MongoContainer(DatabaseContainer):
 
         self.cur = self.connection.cursor()
 
-        #Write the port number to a file
-        with open(self.portfile,"w") as f:
-            f.write(str(self.connection.port))
-
-
     def open(self,password=None):
         if (self.isopen()):
-            logger.info("Open (already open): %s",self.dbfolder)
-            portnm = 0
-            #Read the port number from the file
-            with open(self.portfile,"r") as f:
-                portnum = int(f.read())
-            if (portnum < 27017):
-                raise Exception("Read portnum that is in weird range")
-
-            self.cur = mongo.getCursor(portnum)
+            self.logger.info("Open (already open): %s",self.dbfolder)
+            raise Exception("Tried to open database that is already open")
         else:
-            logger.info("Open (decrypt): %s",self.dbfolder)
+            self.logger.info("Open (decrypt): %s",self.dbfolder)
             if (password is None): raise Exception("Container needs password for decryption")
             DatabaseContainer.open(self,password)
-            self.isopener = True
 
             try:
                 self.connection = mongo.Connection(self.dbfolder,self.checkSize())
@@ -78,10 +61,6 @@ class MongoContainer(DatabaseContainer):
 
             self.cur = self.connection.cursor()
 
-            #Write the port number to a file
-            with open(self.portfile,"w") as f:
-                f.write(str(self.connection.port))
-
     def cursor(self):
         return self.cur
 
@@ -89,8 +68,7 @@ class MongoContainer(DatabaseContainer):
     def close(self):
         if (self.connection!=None):
             self.connection.close()
-        if (self.isopener):
-            DatabaseContainer.close(self)
+        DatabaseContainer.close(self)
 
     def forceClose(self):
         if (self.connection!=None):
@@ -103,18 +81,51 @@ class MongoContainer(DatabaseContainer):
         DatabaseContainer.panic(self)
 
 if (__name__=="__main__"):
-    MongoContainer.fileLocation = "./test_db"
-    MongoContainer.tmpLocation = "./test_mnt"
+
+    import sys
+    print os.path.abspath("../../")
+    sys.path.append(os.path.abspath("../../"))
+    from rootprocess.rootprocess import run
+    from rootprocess.client import RootCommander
+    from multiprocessing import Process, Pipe
+    import logging
+    import os
+    import cryptfile
 
     import shutil
+
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    conf= {
+        "mntdir":"./test_mnt",
+        "dbdir":"./test_db",
+        "user": "cryptomongo"
+    }
+
+    logger = logging.getLogger("container")
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
+    p, child_pipe = Pipe()
+
+
+
+    child = Process(target=run,args=(child_pipe,logger,conf,))
+    child.start()
+
+
+    rc = RootCommander(p)
+    cryptfile.FileCrypto.rootcommander = rc
+    DatabaseContainer.fileLocation = "./test_db"
+    DatabaseContainer.mntLocation = "./test_mnt"
+    MongoContainer.logger = logger
+    print "MONGO",MongoContainer.fileLocation
     import time
 
     pwd = "testpassword"
-
-    if (os.path.exists(MongoContainer.fileLocation)):
-        shutil.rmtree(MongoContainer.fileLocation)
-    if (os.path.exists(MongoContainer.tmpLocation)):
-        shutil.rmtree(MongoContainer.tmpLocation)
 
     c = MongoContainer("testDatabase")
 
@@ -158,7 +169,7 @@ if (__name__=="__main__"):
 
     print "Cleaning up"
     shutil.rmtree(MongoContainer.fileLocation)
-    shutil.rmtree(MongoContainer.tmpLocation)
+    shutil.rmtree(MongoContainer.mntLocation)
 
     assert not c.exists()
     assert dta["wee"]=="waa"
@@ -166,3 +177,10 @@ if (__name__=="__main__"):
     print "Create Time:",createTime
     print "Open Time:",openTime
     print "Close Time",closeTime,closeTime2
+
+    print "Cleaning up"
+
+    p.send("EOF")
+    child.join()
+
+    print "Done"
