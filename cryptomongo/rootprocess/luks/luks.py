@@ -8,16 +8,16 @@ class CryptoLuks(object):
         self.mountdir = mountdir
         self.fuuid = uuid4().hex    #The UUID used for creating the mapper device
         self.maploc = os.path.join("/dev/mapper",self.fuuid)
-        
+
     def create(self,password,fsize=64,randomInit=False,owner="root"):
         """Creates a new LUKS container, and mounts it at the given mountpoint.
         Tries to undo changes if there is an error.
-        
+
         Keyword Arguments:
         fsize -- the file size in megabytes (int)
         randomInit -- Whether or not to initialize created file with random bits (bool), takes longer if True.
         """
-        
+
         if (os.path.exists(self.cryptfile)==False):
             if (randomInit==True):
                 if (call(["dd","if=/dev/urandom","of="+self.cryptfile,"bs=1M","count="+str(fsize)])!=0):
@@ -27,13 +27,13 @@ class CryptoLuks(object):
                     raise IOError("Failed to create file \""+self.cryptfile+"\" (fallocate)")
         else:
             raise IOError("File \""+self.cryptfile+"\" already exists!")
-            
+
         if not os.path.exists(self.mountdir):
             os.mkdir(self.mountdir)
         elif (os.listdir(self.mountdir) != []):
             os.remove(self.cryptfile)
             raise IOError("Mount directory \""+self.cryptfile+"\" is not empty!")
-        
+
         #Format the file
         csetup = Popen(["cryptsetup","luksFormat",self.cryptfile],stdin=PIPE)
         csetup.communicate(password+"\n")
@@ -42,7 +42,7 @@ class CryptoLuks(object):
             os.remove(self.cryptfile)
             os.rmdir(self.mountdir)
             raise IOError("CryptSetup luksFormat failed!")
-        
+
         #Open the volume
         csetup = Popen(["cryptsetup","luksOpen",self.cryptfile,self.fuuid],stdin=PIPE)
         csetup.communicate(password+"\n")
@@ -51,48 +51,54 @@ class CryptoLuks(object):
             os.remove(self.cryptfile)
             os.rmdir(self.mountdir)
             raise IOError("CryptSetup luksOpen failed!")
-        
+
         if (call(["mkfs.ext4","-j",self.maploc])!= 0):
             call(["cryptsetup","luksClose",self.fuuid])
             os.remove(self.cryptfile)
             os.rmdir(self.mountdir)
             raise IOError("mkfs.ext4 failed!")
-        
+
         if (call(["mount",self.maploc,self.mountdir])!= 0):
             call(["cryptsetup","luksClose",self.fuuid])
             os.remove(self.cryptfile)
             os.rmdir(self.mountdir)
             raise IOError("mount failed!")
-        
+
         #Allows the owner to access the directory and file - since we are currently root
         if (owner!="root"):
-            call(["chown",owner,self.mountdir])
-            call(["chown",owner,self.cryptfile])
-            
+            call(["chown",owner+":"+owner,self.mountdir])
+            call(["chown",owner+":"+owner,self.cryptfile])
+
         #For security, only owner can even touch the directory.
         call(["chmod","700",self.mountdir])
-        
-    def open(self,password):
+
+    def open(self,password, owner = None):
         """Opens the LUKS file and mounts it"""
         csetup = Popen(["cryptsetup","luksOpen",self.cryptfile,self.fuuid],stdin=PIPE)
         csetup.communicate(password+"\n")
         csetup.wait()
         if (csetup.returncode != 0):
             raise IOError("luksOpen failed")
-        
+
         #mount it!
         if ( call(["mount",self.maploc,self.mountdir])!= 0):
             call(["cryptsetup","luksClose",self.fuuid])
             raise IOError("mount failed")
-            
+
+        #If we have an owner, make sure that the correct user can access the files, and
+        #   that this user is the ONLY user that can access these files
+        if (owner is not None and owner!="root"):
+            call(["chown","-R",owner+":"+owner,self.mountdir])
+            call(["chmod","-R","700",self.mountdir])
+
     def close(self):
         """Unmounts and closes the LUKS file"""
         if (call(["umount",self.mountdir])!=0):
             self.panic()
         else:
             call(["cryptsetup","luksClose",self.fuuid])
-        
-        
+
+
     def suspend(self):
         """Calls luksSuspend. Stops all IO, and purges keys from kernel. Note that it does not purge the password from this class, so suspend will not guarantee that password is not in memory."""
         call(["cryptsetup","luksSuspend",self.fuuid])
@@ -103,7 +109,7 @@ class CryptoLuks(object):
         csetup.wait()
         if (csetup.returncode != 0):
             raise IOError("luksResume failed!")
-            
+
     def panic(self):
         """Immediately suspends IO to the volume and attempts closing it. Closing is dependent on processes, while suspend is immediate. Can cause loss of data - use only in emergencies."""
         call(["fuser","-km",self.mountdir])

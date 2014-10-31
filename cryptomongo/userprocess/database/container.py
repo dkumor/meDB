@@ -1,6 +1,6 @@
 
 import os
-from meDB.cryptoServer import client
+import cryptfile
 
 class DatabaseContainer(object):
     """
@@ -9,12 +9,12 @@ class DatabaseContainer(object):
     """
 
     fileLocation = "./db/"
-    tmpLocation = "./mnt/"
+    mntLocation = "./mnt/"
     def __init__(self,dbid):
         self.dbid = dbid
 
         floc = os.path.abspath(self.fileLocation)
-        tloc = os.path.abspath(self.tmpLocation)
+        tloc = os.path.abspath(self.mntLocation)
 
         #Create file location folder if it doesnt exist
         if not (os.path.isdir(floc)):
@@ -34,7 +34,7 @@ class DatabaseContainer(object):
         self.decloc = os.path.join(tloc,dbid)
 
         #Create crypto object for reading encrypted database
-        self.crypto = client.Crypto(self.datafile,self.decloc)
+        self.crypto = cryptfile.FileCrypto(self.dbid)
 
     def exists(self):
         return os.path.exists(self.datafile)
@@ -55,8 +55,6 @@ class DatabaseContainer(object):
         except:
             os.rmdir(self.decloc)
             raise
-
-        #Note: This
 
     def open(self,password):
         if self.isopen():
@@ -86,16 +84,49 @@ class DatabaseContainer(object):
         return self.dbid
 
 if (__name__=="__main__"):
-    DatabaseContainer.fileLocation = "./test_db"
-    DatabaseContainer.tmpLocation = "./test_tmp"
+
+    import sys
+    print os.path.abspath("../../")
+    sys.path.append(os.path.abspath("../../"))
+    from rootprocess.rootprocess import run
+    from rootprocess.client import RootCommander
+    from multiprocessing import Process, Pipe
+    import logging
+    import os
 
     import shutil
+
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    conf= {
+        "mntdir":"./test_mnt",
+        "dbdir":"./test_db",
+        "user": "cryptomongo"
+    }
+
+    logger = logging.getLogger("container")
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
+    p, child_pipe = Pipe()
+
+
+
+    child = Process(target=run,args=(child_pipe,logger,conf,))
+    child.start()
+
+
+    rc = RootCommander(p)
+    cryptfile.FileCrypto.rootcommander = rc
+    DatabaseContainer.fileLocation = "./test_db"
+    DatabaseContainer.tmpLocation = "./test_mnt"
+
     pwd = "testpassword"
 
-    if (os.path.exists(DatabaseContainer.fileLocation)):
-        shutil.rmtree(DatabaseContainer.fileLocation)
-    if (os.path.exists(DatabaseContainer.tmpLocation)):
-        shutil.rmtree(DatabaseContainer.tmpLocation)
+
 
     x = DatabaseContainer("testContainer")
 
@@ -121,7 +152,14 @@ if (__name__=="__main__"):
     x.close()
 
     print "Cleaning up"
+
+
     shutil.rmtree(DatabaseContainer.fileLocation)
     shutil.rmtree(DatabaseContainer.tmpLocation)
 
     assert not x.exists()
+
+    p.send("EOF")
+    child.join()
+
+    print "Done"

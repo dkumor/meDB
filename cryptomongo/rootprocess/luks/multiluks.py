@@ -69,7 +69,7 @@ class MultiLuks(object):
             #We are registered to open the container
             try:
                 cntnr = self.getluks(container)
-                cntnr.open(password)
+                cntnr.open(password,owner=self.user)
                 self.containers[container] = cntnr
             except Exception, e:
                 self.unregister(container)
