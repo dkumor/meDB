@@ -4,8 +4,8 @@ from multiprocessing import Process, Pipe
 import config
 import usertools
 
-import rootprocess
-import server
+from rootprocess import rootprocess
+from userprocess import userprocess
 
 
 #Get the configuration of the server
@@ -16,6 +16,10 @@ conf, logger = config.get()
 if (os.getuid() != 0):
     logger.critical("Run me as root!")
     exit(0)
+
+#Create the data directory if it does not exist
+if not os.path.exists(conf["datadir"]):
+    os.mkdir(conf["datadir"])
 
 
 if (conf["user"]==""):
@@ -32,7 +36,7 @@ def child(child_pipe,logger,cfg):
     usertools.drop_privileges(cfg["user"])
 
     #Run the server
-    server.run(child_pipe,logger,cfg)
+    userprocess.run(child_pipe,logger,cfg)
 
 parent_pipe, child_pipe = Pipe()
 p = Process(target=child,args=(child_pipe,logger,conf,))
