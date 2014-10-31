@@ -79,6 +79,9 @@ def conf():
         cfg["key"] = a.key
 
 
+    #Now set several things that are not in the configuration
+    cfg["mntdir"] = os.path.join(cfg["datadir"],"mnt")
+    cfg["dbdir"] = os.path.join(cfg["datadir"],"db")
 
     return cfg
 

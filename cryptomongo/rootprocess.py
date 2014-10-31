@@ -1,8 +1,9 @@
 
 import threading
 import time
+import os
 
-import multiluks
+from luks.multiluks import MultiLuks
 
 
 def runcommand(cmd,pipe,pipelock,luks):
@@ -12,15 +13,15 @@ def runcommand(cmd,pipe,pipelock,luks):
         if (cmd["cmd"] == "create"):
             logger.info("LUKSCreate %(container)s (%(size)sM)",cmd)
             luks.create(cmd["container"],cmd["pass"],cmd["size"])
-
+            logger.info("LUKSCreate %(container)s OK",cmd)
         elif (cmd["cmd"] == "open"):
             logger.info("LUKSOpen %(container)s",cmd)
             luks.open(cmd["container"],cmd["pass"])
-
+            logger.info("LUKSOpen %(container)s OK",cmd)
         elif (cmd["cmd"] == "close"):
             logger.info("LUKSClose %(container)s",cmd)
             luks.close(cmd["container"])
-
+            logger.info("LUKSClose %(container)s OK",cmd)
         elif (cmd["cmd"] == "panic"):
 
             if (cmd["container"]=="*"):
@@ -34,6 +35,7 @@ def runcommand(cmd,pipe,pipelock,luks):
                 logger.warning("PANIC %(container)s closed",cmd)
 
     except Exception, e:
+        logger.warning("RunCommand exception: %s"%(str(e),))
         out = str(e)
 
 
@@ -45,9 +47,7 @@ def runcommand(cmd,pipe,pipelock,luks):
 def run(pipe,logger,config):
 
     #First things first, set up luks
-    luks = multiluks.MultiLuks(config["user"],
-            os.path.join(config["datadir"],"db"),
-            os.path.join(config["datadir"],"mnt"))
+    luks = MultiLuks(config["user"],config["dbdir"],config["mntdir"])
 
     #The pipe is going to be accessed from multiple threads, so we need
     #   to lock it
@@ -63,6 +63,7 @@ def run(pipe,logger,config):
 
         #Shut down if we get the shutdown signal
         if (r=="EOF"):
+            logger.info("Recv EOF cmd")
             break
         else:
             #Each command is run in an independent python thread, so that many commands
@@ -70,6 +71,7 @@ def run(pipe,logger,config):
             t = threading.Thread(target=runcommand,args = (r,pipe,pipelock,luks))
             t.daemon =False
             t.start()
+            t.handled = False
             threads.append(t)
 
             #Remove finished threads
@@ -90,9 +92,53 @@ def run(pipe,logger,config):
 if (__name__=="__main__"):
     from multiprocessing import Process, Pipe
     import logging
-    logger = logging.getLogger("test")
 
-    run(parent_pipe,logger,config)
+    import shutil
 
-    p = Process(target=run,args=(child_pipe,logger,conf,))
-    p.start()
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    conf= {
+        "mntdir":"./test_mnt",
+        "dbdir":"./test_db",
+        "user": "cryptomongo"
+    }
+
+    logger = logging.getLogger("rootprocess")
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
+    p, child_pipe = Pipe()
+
+
+
+    child = Process(target=run,args=(child_pipe,logger,conf,))
+    child.start()
+
+
+    p.send({"cmd": "create",
+        "id": 1,
+        "container": "lol",
+        "pass": "pwd",
+        "size": 64
+    })
+    p.send({"cmd": "close",
+        "id": 2,
+        "container": "lol",
+    })
+
+    print p.recv()
+    print p.recv()
+
+    p.send("EOF")
+    child.join()
+
+
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    print "DONE"
