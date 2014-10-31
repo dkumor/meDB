@@ -6,7 +6,7 @@ import os
 from luks.multiluks import MultiLuks
 
 
-def runcommand(cmd,pipe,pipelock,luks):
+def runcommand(cmd,logger,pipe,pipelock,luks):
     out = "OK"  #The output of a successful command is "OK"
 
     try:
@@ -68,7 +68,7 @@ def run(pipe,logger,config):
         else:
             #Each command is run in an independent python thread, so that many commands
             #   can be executed at the same time
-            t = threading.Thread(target=runcommand,args = (r,pipe,pipelock,luks))
+            t = threading.Thread(target=runcommand,args = (r,logger,pipe,pipelock,luks))
             t.daemon =False
             t.start()
             t.handled = False
