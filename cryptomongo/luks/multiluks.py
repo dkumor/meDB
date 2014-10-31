@@ -1,5 +1,6 @@
 import threading
 import os
+import time
 
 import luks
 
@@ -26,7 +27,7 @@ class MultiLuks(object):
     def chkpanic(self):
         if (self.ispanic): raise Exception("Panic mode enabled")
     def getluks(self,container):
-        return luks.CryptoLuks(os.path.join(self.mntdir,container),self.mntdir)
+        return luks.CryptoLuks(os.path.join(self.filedir,container),self.mntdir)
     def registerOrDie(self,container):
         self.chkpanic()
         self.c_lock.acquire()
@@ -69,6 +70,7 @@ class MultiLuks(object):
             try:
                 cntnr = self.getluks(container)
                 cntnr.open(password)
+                self.containers[container] = cntnr
             except Exception, e:
                 self.unregister(container)
                 raise e #Reraise the error
@@ -84,6 +86,9 @@ class MultiLuks(object):
             if (container in self.containers and self.containers[container] is not None):
                 self.containers[container].close()
                 del self.containers[container]
+                self.c_lock.release()
+                break
+            elif not (container in self.containers):    #Release, since DNE
                 self.c_lock.release()
                 break
             self.c_lock.release()
@@ -119,9 +124,10 @@ class MultiLuks(object):
         self.ispanic = True     #PANIC MODE ENABLED - nothing new will be created/opened
         while (True):
             self.c_lock.acquire()
-            for k in self.containers:
-                self.containers[container].panic()
-                del self.containers[container]
+            for k in self.containers.keys():
+                if (self.containers[k] is not None):
+                    self.containers[k].panic()
+                    del self.containers[k]
             self.c_lock.release()
             if (len(self.containers)==0):
                 break
@@ -129,3 +135,74 @@ class MultiLuks(object):
             #   panicing it!
             time.sleep(0.3)
         self.ispanic = False    #We are done with panic.
+
+if (__name__=="__main__"):
+    import shutil
+
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    ml = MultiLuks("cryptomongo","./test_db","./test_mnt")
+
+    try:
+        ml.open("lala","lol")
+        print "OPEN SUCCEEDED - FAIL"
+        exit(0)
+    except:
+        pass
+    ml.close("lo")
+
+    ml.create("arr","pass",64)
+    try:
+        ml.create("arr","pas",64)
+        print "CREATE SUCCEEDED - FAIL"
+        exit(0)
+    except:
+        pass
+
+    ml.open("arr","pwd")
+
+    ml.panicall()
+
+    ml.open("arr","pass")
+
+    ml.close("arr")
+
+    try:
+        ml.open("arr","pwd")
+        print "WRONG PASSWORD OPEN"
+        exit(0)
+    except:
+        pass
+
+    ml.open("arr","pass")
+
+    ml.close("arr")
+
+    def testmultiopen(ml):
+        time.sleep(0.2)
+        print "OPENING"
+        ml.open("arry","pass")
+        print "DONEOPEN"
+    def testmulticreate(ml):
+        print "CREATING"
+        ml.create("arry","pass",64)
+        print "DONECREATE"
+
+    t1=threading.Thread(target=testmulticreate,args=(ml,))
+    t2=threading.Thread(target=testmultiopen,args=(ml,))
+    t1.start()
+    t2.start()
+    t1.join()
+    t2.join()
+
+    ml.panicall()
+
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    print "DONE"
