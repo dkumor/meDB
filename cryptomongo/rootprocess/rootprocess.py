@@ -1,4 +1,4 @@
-
+import signal
 import threading
 import time
 import os
@@ -45,6 +45,7 @@ def runcommand(cmd,logger,pipe,pipelock,luks):
     pipelock.release()
 
 def run(pipe,logger,config):
+    logger.info("Running root process")
 
     #First things first, set up luks
     luks = MultiLuks(config["user"],config["dbdir"],config["mntdir"])
@@ -52,6 +53,17 @@ def run(pipe,logger,config):
     #The pipe is going to be accessed from multiple threads, so we need
     #   to lock it
     pipelock = threading.Lock()
+
+    #Send the child an EOF if we get a signal
+    def handleSignal(*args):
+        pass
+        """
+        pipelock.acquire()
+        pipe.send("EOF")
+        pipelock.release()
+        """
+
+    signal.signal(signal.SIGINT,handleSignal)
 
     #We keep an array of worker threads currently doing something
     threads = []

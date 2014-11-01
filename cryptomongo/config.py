@@ -26,7 +26,7 @@ def configParse(cfg):
     config.read(cfg["cfile"])
 
 
-    try: cfg["port"] = config.get("cryptomongo","port")
+    try: cfg["port"] = int(config.get("cryptomongo","port"))
     except: pass
     try: cfg["logfile"]= config.get("cryptomongo","logfile")
     except: pass
@@ -49,7 +49,8 @@ def conf():
         "datadir": "./cryptomongo",
         "user": "cryptomongo",
         "key": '',
-        "cert": ''
+        "cert": '',
+        "address":"127.0.0.1"
     }
 
     a = argParse()
@@ -82,7 +83,7 @@ def conf():
     #Now set several things that are not in the configuration
     cfg["mntdir"] = os.path.join(cfg["datadir"],"mnt")
     cfg["dbdir"] = os.path.join(cfg["datadir"],"db")
-
+    cfg["port"] = int(cfg["port"])
     return cfg
 
 def getLogger(cfg):
@@ -100,6 +101,7 @@ def getLogger(cfg):
         ch2.setLevel(logging.INFO)
         ch2.setFormatter(logging.Formatter(FORMAT))
         logger.addHandler(ch2)
+    logger.propagate = False
     return logger
 
 

@@ -34,13 +34,13 @@ class RootCommander(object):
         while (True):
             cmd = self.pipe.recv()
             if (cmd=="EOF"):
-                break
+                if (self.eof is not None):
+                    self.eof(self)
             else:
                 #The command should be valid (id,response) pair
                 self.completeQuery(cmd[0],cmd[1])
 
-        if (self.eof is not None):
-            self.eof()
+        
 
 
     def addQuery(self):
@@ -96,7 +96,12 @@ class RootCommander(object):
         l.acquire() #Wait until the query is finished
         l.release()
         return self.remQuery(r)
-
+    
+    def shutdown(self):
+        self.q_lock.acquire()
+        self.pipe.send("EOF")
+        self.q_lock.release()
+    
 if (__name__=="__main__"):
     from rootprocess import run
     from multiprocessing import Process, Pipe

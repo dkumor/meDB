@@ -7,7 +7,6 @@ import usertools
 from rootprocess import rootprocess
 from userprocess import userprocess
 
-
 #Get the configuration of the server
 conf, logger = config.get()
 
@@ -39,10 +38,11 @@ def child(child_pipe,logger,cfg):
     userprocess.run(child_pipe,logger,cfg)
 
 parent_pipe, child_pipe = Pipe()
+
 p = Process(target=child,args=(child_pipe,logger,conf,))
 p.start()
 
 #Run the root process
-rootprocess.run(parent_pipe,logger,config)
+rootprocess.run(parent_pipe,logger,conf)
 
 p.join()
