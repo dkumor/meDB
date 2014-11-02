@@ -28,5 +28,8 @@ class FileCrypto(object):
         self.q({"cmd": "close","container":self.container})
     def panic(self):
         self.q({"cmd": "panic","container":self.container})
-    def fuckingPanic(self):
+
+    #Panic all open containers
+    @staticmethod
+    def panicall():
         self.q({"cmd": "panic","container":"*"})
