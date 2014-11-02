@@ -35,7 +35,7 @@ def runcommand(cmd,logger,pipe,pipelock,luks):
                 logger.warning("PANIC %(container)s closed",cmd)
 
     except Exception, e:
-        logger.warning("RunCommand exception: %s"%(str(e),))
+        logger.warning("Root RunCommand exception: %s"%(str(e),))
         out = str(e)
 
 

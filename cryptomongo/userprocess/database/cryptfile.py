@@ -1,5 +1,10 @@
 """
-The Crypto object: it wraps the rootcommander object
+The Crypto object: it wraps the rootcommander object to allow for encrypting containers at rest.
+
+As a side note: I really don't like the fact that rootcommander needs to be set in order for the function to work.
+The rootcommander comes from the "top" of the execution tree, but it is only used at the very bottom, since it is a very
+low level communication device. I am not sure what I want to do about that. For now, I guess that the rootcommander simply needs to be set
+by the higher level functions - as a sort of global variable for the entire program.
 """
 
 class FileCrypto(object):
@@ -25,18 +30,3 @@ class FileCrypto(object):
         self.q({"cmd": "panic","container":self.container})
     def fuckingPanic(self):
         self.q({"cmd": "panic","container":"*"})
-
-
-if (__name__=="__main__"):
-    c = FileCrypto("rawr2")
-    c.open("rawr")
-    raw_input(">>>")
-    c.fuckingPanic()
-    raw_input(">>>")
-    c.open("rawr")
-    raw_input(">>>")
-    c.panic()
-    raw_input(">>>")
-    c.open("rawr")
-    raw_input(">>>")
-    c.close()

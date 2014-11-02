@@ -86,10 +86,11 @@ class DatabaseContainer(object):
 if (__name__=="__main__"):
 
     import sys
-    print os.path.abspath("../../")
+
+    sys.path.append(os.path.abspath("../"))
     sys.path.append(os.path.abspath("../../"))
     from rootprocess.rootprocess import run
-    from rootprocess.client import RootCommander
+    from rootcommander import RootCommander
     from multiprocessing import Process, Pipe
     import logging
     import os
@@ -122,7 +123,7 @@ if (__name__=="__main__"):
     rc = RootCommander(p)
     cryptfile.FileCrypto.rootcommander = rc
     DatabaseContainer.fileLocation = "./test_db"
-    DatabaseContainer.tmpLocation = "./test_mnt"
+    DatabaseContainer.mntLocation = "./test_mnt"
 
     pwd = "testpassword"
 
@@ -155,7 +156,7 @@ if (__name__=="__main__"):
 
 
     shutil.rmtree(DatabaseContainer.fileLocation)
-    shutil.rmtree(DatabaseContainer.tmpLocation)
+    shutil.rmtree(DatabaseContainer.mntLocation)
 
     assert not x.exists()
 
