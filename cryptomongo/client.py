@@ -23,9 +23,20 @@ class CryptoMongo(object):
         #Connect to an already open database.
         r= self.q({"cmd": "connect","name": name})
 
+    def ls(self):
+        return self.q({"cmd": "ls"})
+
+
+
     """
     The following functions are administrative - they allow control of the databases within the cluster
     """
+
+    def isopen(self,name):
+        return self.q({"cmd": "isopen","name":name})
+
+    def exists(self,name):
+        return self.q({"cmd": "exists","name":name})
 
     def create(self,name,password,size=64):
         #Create an entirely new database container
@@ -49,12 +60,14 @@ class CryptoMongo(object):
 
     def panicall(self):
         #Holy shit, things are FUCKED. Panics all open databases.
-        self.q({"cmd": "holyfuck"})
+        self.q({"cmd": "panicall"})
 
 
 
 
 if (__name__=="__main__"):
     c = CryptoMongo()
-    c.connect("lol")
-    c.panicall()
+    print c.ls()
+    print c.exists("hello")
+    print c.isopen("hello")
+    #c.panicall()

@@ -21,13 +21,13 @@ class DatabaseContainer(object):
             if (os.path.exists(floc)):
                 raise Exception(floc+" is not a directory!")
             else:
-                os.makedirs(floc)
+                os.mkdir(floc)
 
         if not (os.path.isdir(tloc)):
             if (os.path.exists(tloc)):
                 raise Exception(tloc+" is not a directory!")
             else:
-                os.makedirs(tloc)
+                os.mkdir(tloc)
 
         #Create data file and decryption locations
         self.datafile = os.path.join(floc,dbid)

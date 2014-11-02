@@ -1,6 +1,8 @@
 import os
 from multiprocessing import Process, Pipe
 
+from subprocess32 import call
+
 import config
 import usertools
 
@@ -20,7 +22,6 @@ if (os.getuid() != 0):
 if not os.path.exists(conf["datadir"]):
     os.mkdir(conf["datadir"])
 
-
 if (conf["user"]==""):
     logger.critical("No user is set for server!")
     exit(0)
@@ -28,6 +29,10 @@ if (conf["user"]==""):
 if not (usertools.userexists(conf["user"])):
     logger.warn("User %s does not exist, creating."%(conf["user"],))
     usertools.mkusr(conf["user"])
+
+#Make sure that the data directory belongs to the user, and that nobody else can even read it
+call(["chown","-R",conf["user"]+":"+conf["user"],conf["datadir"]])
+call(["chmod","-R","770",conf["datadir"]])
 
 def child(child_pipe,logger,cfg):
     #The child process will drop all privileges, and start a tornado server. The child process is where most

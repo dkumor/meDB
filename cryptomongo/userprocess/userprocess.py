@@ -42,27 +42,37 @@ class MainHandler(tornado.web.RequestHandler):
 
         #Handle the accepted commands
         if (cmd=="connect"):
-            pass
-        elif (cmd=="create"):
-            pass
-        elif (cmd=="open"):
-            pass
-        elif (cmd=="close"):
-            pass
-        elif (cmd=="panic"):
-            pass
-        elif (cmd=="panicall"):
-            pass
+            self.send_error(500)
+            """
+            elif (cmd=="create"):
+                self.send_error(500)
+            elif (cmd=="open"):
+                self.send_error(500)
+            elif (cmd=="close"):
+                self.send_error(500)
+            elif (cmd=="panic"):
+                self.send_error(500)
+            elif (cmd=="panicall"):
+                self.send_error(500)
+            elif (cmd=="delete"):
+                self.send_error(500)
+            """
+        #These commands should all be fast - so no need to run them in another thread
         elif (cmd=="ls"):
-            pass
-        elif (cmd=="delete"):
-            pass
+            logger.info("LS command -> listing open dbs")
+            self.write(json.dumps(dbhandler.ls()))
         elif (cmd=="exists"):
-            pass
+            n = self.get_argument("name")
+            logger.info("EXISTS %s",n)
+            self.write(json.dumps(dbhandler.exists(n)))
         elif (cmd=="isopen"):
-            pass
+            n = self.get_argument("name")
+            logger.info("ISOPEN %s",n)
+            self.write(json.dumps(dbhandler.isopen(n)))
 
-        self.send_error(500)
+        else:
+            logger.error("Unknown command: \"%s\""%(cmd,))
+            self.send_error(500)
 
 
 
@@ -82,6 +92,7 @@ def shutdown_server(*args):
 
 
 def run(pipe,log,config):
+    log.info("Setting up user process as %(user)s"%config)
     #Set the logger
     global logger
     logger = log

@@ -13,6 +13,7 @@ def argParse():
     parser.add_argument("-l","--logfile",help="The log file location")
     parser.add_argument("-p","--port",help="The port number to launch server on",type=int)
     parser.add_argument("-d","--datadir",help="The root directory from which to run cryptoMongo")
+    parser.add_argument("-u","--user",help="Set the username from which to run")
     parser.add_argument("--key",help="File for root CA private key")
     parser.add_argument("--cert",help="File for root CA certificate")
     return parser.parse_args()
@@ -78,6 +79,8 @@ def conf():
         cfg["cert"] = a.cert
     if (a.key):
         cfg["key"] = a.key
+    if (a.user):
+        cfg["user"] = a.user
 
 
     #Now set several things that are not in the configuration

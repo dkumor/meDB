@@ -3,7 +3,7 @@ import threading
 
 import rootcommander
 from database import cryptfile, container
-from database.cryptomongo import MongoContainer
+from database.mongocontainer import MongoContainer
 
 
 class DatabaseManager(object):
@@ -16,8 +16,8 @@ class DatabaseManager(object):
         cryptfile.FileCrypto.rootcommander = rc
 
         #Containers need to know their mount/database container directories
-        container.fileLocation = dbdir
-        container.mntLocation = mntdir
+        container.DatabaseContainer.fileLocation = dbdir
+        container.DatabaseContainer.mntLocation = mntdir
 
         self.databases = {}
         self.d_lock = threading.Lock()
