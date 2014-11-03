@@ -58,6 +58,11 @@ class MongoContainer(DatabaseContainer):
     def cursor(self):
         return self.cur
 
+    def port(self):
+        #Returns the port on which mongoDB is open
+        if (self.connection is not None):
+            return self.connection.port
+        return None
 
     def close(self):
         if (self.connection!=None):

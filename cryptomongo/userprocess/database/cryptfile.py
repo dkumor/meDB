@@ -15,21 +15,22 @@ class FileCrypto(object):
         if (self.rootcommander is None):
             raise Exception("RootCommander not set!")
 
-    def q(self,cmd):
-        r = self.rootcommander.sync_q(cmd)
+    @staticmethod
+    def q(cmd):
+        r = FileCrypto.rootcommander.sync_q(cmd)
         if (r!="OK"):
             raise Exception(r)
 
     def create(self,password,size=64):
-        self.q({"cmd": "create","size":size,"container":self.container,"pass":password})
+        FileCrypto.q({"cmd": "create","size":size,"container":self.container,"pass":password})
     def open(self,password):
-        self.q({"cmd": "open","container":self.container,"pass":password})
+        FileCrypto.q({"cmd": "open","container":self.container,"pass":password})
     def close(self):
-        self.q({"cmd": "close","container":self.container})
+        FileCrypto.q({"cmd": "close","container":self.container})
     def panic(self):
-        self.q({"cmd": "panic","container":self.container})
+        FileCrypto.q({"cmd": "panic","container":self.container})
 
     #Panic all open containers
     @staticmethod
     def panicall():
-        self.q({"cmd": "panic","container":"*"})
+        FileCrypto.q({"cmd": "panic","container":"*"})

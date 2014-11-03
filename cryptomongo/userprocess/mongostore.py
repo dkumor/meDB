@@ -49,7 +49,7 @@ class DatabaseManager(object):
         self.d_lock.acquire()
         if (dbid in self.databases):
             v = self.databases[dbid]
-            if (isinstance(v,threading.Lock)):
+            if not (isinstance(v,MongoContainer)):
                 self.d_lock.release()
                 v.acquire()
                 v.release()
@@ -100,9 +100,10 @@ class DatabaseManager(object):
 
     def connect(self,dbid):
         db = self.waitFor(dbid)
+        self.d_lock.release()   #We don't need to keep the lock
         if (db is not None):
             #get the port number for the database
-            return db.port
+            return db.port()
         return None
 
 
@@ -113,11 +114,11 @@ class DatabaseManager(object):
             c = MongoContainer(dbid)
             try:
                 c.open(password)
-                self.addreg(dbid,c)
-                return c.port
             except:
                 self.delreg(dbid)
                 raise
+            self.addreg(dbid,c)
+            return c.port()
         #If already open, just connect to it
         return self.connect(dbid)
 
@@ -133,7 +134,7 @@ class DatabaseManager(object):
         self.ispanic = True #The ispanic variable stops all new connectinos while closing stuff
         self.d_lock.acquire()
         for k in self.databases.keys():
-            if not (isinstance(self.databases[k],threading.Lock)):
+            if (isinstance(self.databases[k],MongoContainer)):
                 self.databases[k].close()
                 del self.databases[k]
         self.d_lock.release()
@@ -149,11 +150,11 @@ class DatabaseManager(object):
             c = MongoContainer(dbid)
             try:
                 c.create(password,size)
-                self.addreg(dbid,c)
-                return c.port
             except:
                 self.delreg(dbid)
                 raise
+            self.addreg(dbid,c)
+            return c.port()
         #If already open, just connect to it
         return self.connect(dbid)
 
@@ -175,7 +176,7 @@ class DatabaseManager(object):
         cryptfile.FileCrypto.panicall()
         self.d_lock.acquire()
         self.databases = {}
-        self.d_lock.remove()
+        self.d_lock.release()
         self.ispanic = False
 
     def ls(self):
@@ -189,3 +190,149 @@ class DatabaseManager(object):
         return MongoContainer(dbid).exists()
     def isopen(self,dbid):
         return MongoContainer(dbid).isopen()
+
+
+if (__name__=="__main__"):
+    import sys
+    import os
+    sys.path.append(os.path.abspath("../"))
+    from rootprocess.rootprocess import run
+    from rootcommander import RootCommander
+    from multiprocessing import Process, Pipe
+    import logging
+
+
+
+    import shutil
+
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
+
+    conf= {
+        "mntdir":"./test_mnt",
+        "dbdir":"./test_db",
+        "user": "cryptomongo"
+    }
+
+    logger = logging.getLogger("container")
+    logging.basicConfig()
+    logger.setLevel(logging.INFO)
+
+    p, child_pipe = Pipe()
+
+
+
+    child = Process(target=run,args=(child_pipe,logger,conf,))
+    child.start()
+
+    rc = RootCommander(p)
+
+    #Okay, create the Database manager here
+    db = DatabaseManager(rc,"./test_db","./test_mnt")
+
+    assert db.exists("lol")==False
+    assert db.isopen("lol")==False
+    assert len(db.ls())==0
+
+
+    def createfnc():
+        print "CREATING LOL"
+        p = db.create("lol","password",2048)
+        print "DONE CREATING LOL"
+    def openfnc():
+        print "OPENINGLOL"
+        p = db.connect("lol")
+        print "DONE OPENING LOL"
+        if (p is None):
+            print "TEST FAILEDDDDDDD"
+        print "Test success openfnc"
+    threading.Thread(target=createfnc).start()
+    threading.Thread(target=openfnc).start()
+
+    time.sleep(0.1)
+    p = db.connect("lol")
+    print "DONE OPENING LOL - in main thread"
+    assert db.exists("lol")
+    assert db.isopen("lol")
+    assert db.ls()[0]=="lol"
+    db.close("lol")
+
+    assert db.exists("lol")
+    assert db.isopen("lol")==False
+
+    assert db.connect("lol") is None
+
+    try:
+        db.open("lol","pwd")
+        print "FAILED - WRONG PASSWORD ACCEPTED"
+        exit(0)
+    except:
+        pass
+    print "AT OPEN of lol again"
+    p = db.open("lol","password")
+    assert db.isopen("lol")
+    p2 = db.create("lol2","password2",2048)
+    assert db.isopen("lol2")
+
+    db.closeall()
+
+    assert db.isopen("lol")==False
+    assert db.isopen("lol2")==False
+    assert db.exists("lol")
+    assert db.exists("lol2")
+
+    def openlol():
+        print "OPENING LOL"
+        p = db.open("lol","password")
+        if (p is None):
+            print "TEST FAILEDDDDDDD1"
+        print "DONE OPENING LOL"
+    def openlol2():
+        print "OPENING LOL2"
+        p = db.open("lol2","password2")
+        print "DONE OPENING LOL2"
+        if (p is None):
+            print "TEST FAILEDDDDDDD2"
+
+    threading.Thread(target=openlol).start()
+    threading.Thread(target=openlol2).start()
+
+    p1 = db.connect("lol")
+    p2 = db.connect("lol2")
+
+
+    assert p1 is not None
+    assert p2 is not None
+
+    db.panicall()
+
+    assert db.isopen("lol")==False
+    assert db.isopen("lol2")==False
+
+    threading.Thread(target=openlol).start()
+    threading.Thread(target=openlol2).start()
+
+
+    p1 = db.connect("lol")
+    p2 = db.connect("lol2")
+
+
+    assert p1 is not None
+    assert p2 is not None
+
+    db.delete("lol2")
+    assert db.exists("lol2")==False
+
+    db.closeall()
+
+    print "Cleaning up"
+
+    p.send("EOF")
+    child.join()
+
+    shutil.rmtree(MongoContainer.fileLocation)
+    shutil.rmtree(MongoContainer.mntLocation)
+
+    print "Done"
