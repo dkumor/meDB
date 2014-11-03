@@ -22,6 +22,9 @@ if (os.getuid() != 0):
 if not os.path.exists(conf["datadir"]):
     os.mkdir(conf["datadir"])
 
+#Now change the working directory to the datadirectory
+os.chdir(conf["datadir"])
+
 if (conf["user"]==""):
     logger.critical("No user is set for server!")
     exit(0)

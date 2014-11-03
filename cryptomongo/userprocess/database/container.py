@@ -13,8 +13,10 @@ class DatabaseContainer(object):
     def __init__(self,dbid):
         self.dbid = dbid
 
-        floc = os.path.abspath(self.fileLocation)
-        tloc = os.path.abspath(self.mntLocation)
+        #We must do all file operations relative to the current directroy due to issues with
+        #   permissions in parent directories.
+        floc = os.path.relpath(self.fileLocation)
+        tloc = os.path.relpath(self.mntLocation)
 
         #Create file location folder if it doesnt exist
         if not (os.path.isdir(floc)):
