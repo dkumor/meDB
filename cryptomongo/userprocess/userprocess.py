@@ -77,7 +77,12 @@ class MainHandler(tornado.web.RequestHandler):
 
 
 def stopserver():
+    global dbhandler
+    global rc
+    global logger
     tornado.ioloop.IOLoop.instance().stop()
+    logger.info("Closing all containers...")
+    dbhandler.closeall()
     rc.shutdown()
 
 isstopping = False

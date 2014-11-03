@@ -1,5 +1,6 @@
 
 import threading
+import time
 
 import rootcommander
 from database import cryptfile, container
@@ -128,6 +129,18 @@ class DatabaseManager(object):
             v.close()
         self.delreg(dbid)
 
+    def closeall(self):
+        self.ispanic = True #The ispanic variable stops all new connectinos while closing stuff
+        self.d_lock.acquire()
+        for k in self.databases.keys():
+            if not (isinstance(self.databases[k],threading.Lock)):
+                self.databases[k].close()
+                del self.databases[k]
+        self.d_lock.release()
+        if (len(self.databases)>0):
+            time.sleep(0.5) #Let other things get rid of their locks
+            self.closeall()
+        self.ispanic = False
 
     def create(self,dbid,password,size=2048):
         self.chkpanic()

@@ -54,3 +54,5 @@ p.start()
 rootprocess.run(parent_pipe,logger,conf)
 
 p.join()
+
+logger.critical("EXITING")
