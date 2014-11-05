@@ -173,6 +173,7 @@ class DatabaseManager(object):
 
     def panicall(self):
         self.ispanic = True
+        #Panic all skips all the BS, and goes right to the crypto controller. We're in a hurry.
         cryptfile.FileCrypto.panicall()
         self.d_lock.acquire()
         self.databases = {}
@@ -220,14 +221,14 @@ if (__name__=="__main__"):
     logging.basicConfig()
     logger.setLevel(logging.INFO)
 
-    p, child_pipe = Pipe()
+    pype, child_pipe = Pipe()
 
 
 
     child = Process(target=run,args=(child_pipe,logger,conf,))
     child.start()
 
-    rc = RootCommander(p)
+    rc = RootCommander(pype)
 
     #Okay, create the Database manager here
     db = DatabaseManager(rc,"./test_db","./test_mnt")
@@ -329,7 +330,7 @@ if (__name__=="__main__"):
 
     print "Cleaning up"
 
-    p.send("EOF")
+    pype.send("EOF")
     child.join()
 
     shutil.rmtree(MongoContainer.fileLocation)

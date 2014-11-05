@@ -44,7 +44,9 @@ class DatabaseContainer(object):
     def isopen(self):
         #We assume that a closed container deletes its mount directory
         if (os.path.exists(self.decloc)):
-            return True
+            if (os.path.ismount(self.decloc)):
+                return True
+            #If the file exists, but is not mounted, then it was probably panic'd earlier
         return False
 
     def create(self,password,size=10000):
@@ -61,7 +63,13 @@ class DatabaseContainer(object):
     def open(self,password):
         if self.isopen():
             raise Exception("Container already open!")
-        os.mkdir(self.decloc)
+
+        #Panic does nto automatically delete the directories, so only create if necessary
+        if not (os.path.exists(self.decloc)):
+            os.mkdir(self.decloc)
+        else:
+            if (not os.path.isdir(self.decloc) or os.path.ismount(self.decloc)):
+                raise Exception("It looks like the container is open... Did stuff crash earlier?")
         try:
             self.crypto.open(password)
         except:

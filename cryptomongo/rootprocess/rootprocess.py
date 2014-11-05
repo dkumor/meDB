@@ -6,32 +6,32 @@ import os
 from luks.multiluks import MultiLuks
 
 
-def runcommand(cmd,logger,pipe,pipelock,luks):
+def runcommand(cmd,logger,pipe,pipelock,lks):
     out = "OK"  #The output of a successful command is "OK"
 
     try:
         if (cmd["cmd"] == "create"):
             logger.info("root: LUKSCreate %(container)s (%(size)sM)",cmd)
-            luks.create(cmd["container"],cmd["pass"],cmd["size"])
+            lks.create(cmd["container"],cmd["pass"],cmd["size"])
             logger.info("root: LUKSCreate %(container)s OK",cmd)
         elif (cmd["cmd"] == "open"):
             logger.info("root: LUKSOpen %(container)s",cmd)
-            luks.open(cmd["container"],cmd["pass"])
+            lks.open(cmd["container"],cmd["pass"])
             logger.info("root: LUKSOpen %(container)s OK",cmd)
         elif (cmd["cmd"] == "close"):
             logger.info("root: LUKSClose %(container)s",cmd)
-            luks.close(cmd["container"])
+            lks.close(cmd["container"])
             logger.info("root: LUKSClose %(container)s OK",cmd)
         elif (cmd["cmd"] == "panic"):
 
             if (cmd["container"]=="*"):
                 logger.critical("root: CRYPTO TOTAL PANIC - HOLY FUCKING SHIT, WE'RE FUCKED")
-                luks.panicall()
+                lks.panicall()
                 logger.warning("root: PANIC: All containers closed.")
 
             else:
                 logger.warning("root: PANIC - %(container)s",cmd)
-                luks.panic(cmd["container"])
+                lks.panic(cmd["container"])
                 logger.warning("root: PANIC %(container)s closed",cmd)
 
     except Exception, e:
@@ -48,7 +48,7 @@ def run(pipe,logger,config):
     logger.info("root: started")
 
     #First things first, set up luks
-    luks = MultiLuks(config["user"],config["dbdir"],config["mntdir"])
+    lks = MultiLuks(config["user"],config["dbdir"],config["mntdir"])
 
     #The pipe is going to be accessed from multiple threads, so we need
     #   to lock it
@@ -80,7 +80,7 @@ def run(pipe,logger,config):
         else:
             #Each command is run in an independent python thread, so that many commands
             #   can be executed at the same time
-            t = threading.Thread(target=runcommand,args = (r,logger,pipe,pipelock,luks))
+            t = threading.Thread(target=runcommand,args = (r,logger,pipe,pipelock,lks))
             t.daemon =False
             t.start()
             t.handled = False
@@ -98,7 +98,7 @@ def run(pipe,logger,config):
     for i in threads:
         i.join()
     logger.info("root: Shutting down all containers")
-    luks.panicall()
+    lks.panicall()
     logger.info("root: finished")
 
 if (__name__=="__main__"):
