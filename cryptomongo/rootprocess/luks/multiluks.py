@@ -1,3 +1,5 @@
+from subprocess32 import call
+
 import threading
 import os
 import time
@@ -18,6 +20,7 @@ class MultiLuks(object):
         #The directory in which containers are located must exist
         if not os.path.exists(self.filedir):
             os.mkdir(self.filedir)
+            call(["chown","-R",user+":"+user,self.filedir]) #All dirs must belong to user
 
         #Hold references to the open containers in memory
         self.containers = {}    #A dictionary of open containers
@@ -117,7 +120,7 @@ class MultiLuks(object):
                 self.containers[container].panic()
                 del self.containers[container]
                 self.c_lock.release()
-                break
+                return
             self.c_lock.release()
 
     def panicall(self):
@@ -133,7 +136,7 @@ class MultiLuks(object):
                 break
             #This is bad - one of the containers is currently being created/opened. Sleep a bit and try
             #   panicing it!
-            time.sleep(0.3)
+            time.sleep(0.5)
         self.ispanic = False    #We are done with panic.
 
 if (__name__=="__main__"):

@@ -173,9 +173,17 @@ class DatabaseManager(object):
 
     def panicall(self):
         self.ispanic = True
+
         #Panic all skips all the BS, and goes right to the crypto controller. We're in a hurry.
         cryptfile.FileCrypto.panicall()
+
+        #Next, clear the "open" dict
         self.d_lock.acquire()
+        #Make sure we free all locks
+        for k in self.databases.keys():
+            if not (isinstance(self.databases[k],MongoContainer)):
+                self.databases[k].release()
+
         self.databases = {}
         self.d_lock.release()
         self.ispanic = False

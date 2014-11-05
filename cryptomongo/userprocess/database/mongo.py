@@ -21,7 +21,7 @@ class Connection(object):
     startPort = 27018   #The port at which to start adding new connections once there are no free ports
     
     def __init__(self,dbfolder,smallfiles=False):
-        self.folder = os.path.abspath(dbfolder)
+        self.folder = os.path.relpath(dbfolder) #The path needs to be relative to avoid permissions errors
         
         #Find a port to connect on
         if (len(self.freedPorts) > 0):
