@@ -18,7 +18,7 @@ perm:   The permissions  of this user with respect to other users
                 d: Can delete user
             }
         }
-        1) "db" - sets permissions database-wide
+        1) "db" - sets permissions database-wide (admin has db.<everything>=True)
         2) uid - sets permissions for the given uid
 
 write: T/F : Whether or not allowed to write _data_ to the database
