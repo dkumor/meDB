@@ -47,8 +47,7 @@ class MongoObject(object):
         if (self._get==""):
             self._data = self._db.find_one(self._find)
         else:
-            self._data = self._db.find_one(self._find,{self._get: True})
-            del self._data["_id"]    #Deletes the default "_id" arg, so that only the wanted key remains
+            self._data = self._db.find_one(self._find,{self._get: True,"_id": False})
             self._data = self._data[self._data.keys()[0]]
 
     def revert(self):
@@ -141,12 +140,18 @@ class RecursiveMongoObject(MongoObject):
         if (i in self._names):
             del self._names[i]  #Setting the object should reset the cached mongoObject
 
-    def getChild(self,i,recursion=0):
+    def getChild(self,i,recursion=0,specialObject=None):
         #Gets the child as a mongoObject, rather than recursiveMongo object
         if (MongoObject.__getitem__(self,i) is None):
             return None
         if (i not in self._names):
-            if (recursion > 0):
+            if (specialObject is not None):
+                #Allows it to simply use a special child. Not sure /why/ yet, but it sounds useful
+                if (recursion > 0):
+                    self._names[i] = specialObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit,recursion-1)
+                else:
+                    self._names[i] = specialObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit)
+            elif (recursion > 0):
                 self._names[i] = RecursiveMongoObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit,recursion-1)
             else:
                 self._names[i] = MongoObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit)
