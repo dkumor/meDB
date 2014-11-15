@@ -110,6 +110,48 @@ class MongoObject(object):
     def __len__(self):
         return len(self._data)
 
+class RecursiveMongoObject(MongoObject):
+    def __init__(self,db,find,get="",data=None, autocommit = True,rerecursion=0):
+        MongoObject.__init__(self,db,find,get,data,autocommit)
+        self.rerecursion = rerecursion
+
+        self.clearInternalObjects()
+
+    def clearInternalObjects(self):
+        #Warning: I am making a very important assumption by caching names:
+        #The assumption is that a cached name will actually exist! The reads
+        #can be done in parallel, since data about a user is committed to the database in useful
+        #chunks, but writes need to all be done from one process
+        self._names = {}
+
+    def reload(self):
+        MongoObject.reload(self)
+        #After reload, the internal objects can be invalid
+        self.clearInternalObjects()
+
+    def commit(self):
+        MongoObject.commit(self)
+        for name in self._names:
+            self._names[name].commit()
+
+    def __getitem__(self,i):
+        return self.getChild(i,self.rerecursion)
+    def __setitem__(self,i,v):
+        MongoObject.__setitem__(self,i,v)
+        if (i in self._names):
+            del self._names[i]  #Setting the object should reset the cached mongoObject
+
+    def getChild(self,i,recursion=0):
+        #Gets the child as a mongoObject, rather than recursiveMongo object
+        if (MongoObject.__getitem__(self,i) is None):
+            return None
+        if (i not in self._names):
+            if (recursion > 0):
+                self._names[i] = RecursiveMongoObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit,recursion-1)
+            else:
+                self._names[i] = MongoObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit)
+        return self._names[i]
+
 if (__name__=="__main__"):
     from pymongo import MongoClient
 
