@@ -33,8 +33,10 @@ class IO_io(MongoObject):
             self._names[name].commit()
 
     def __getitem__(self,i):
+        if (MongoObject.__getitem__(self,i) is None):
+            return None
         if (i not in self._names):
-            self._names[i] = MongoObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i))
+            self._names[i] = MongoObject(self._db,self._find,self.getChildPath(i),MongoObject.__getitem__(self,i),self.autocommit)
         return self._names[i]
 
 class IO(MongoObject):
@@ -120,3 +122,28 @@ if (__name__=="__main__"):
     
     assert str(v.meta) == "({'gg': 'game', 'hi': 5, 'word': 'down'})[{}]"
     assert str(db.find_one()["meta"]) == "{u'gg': u'game', u'hi': 5, u'word': u'down'}"
+
+
+    assert len(v.io)==0
+    v.io["light1"]={"type": "bool"}
+    v.io["light2"]={"type": "bool"}
+    v.io["light3"]={"type": "bool"}
+    assert len(v.io)==0
+    v.commit()
+
+    assert len(v.io)==3
+    assert "light2" in v.io
+    assert not "light8" in v.io
+
+    v.io.delete("light2")
+    v.io.commit()
+
+    assert not "light2" in v.io
+    assert str(db.find_one()["io"]) == "{u'light3': {u'type': u'bool'}, u'light1': {u'type': u'bool'}}"
+
+    assert v.io["light1"]["type"] == "bool"
+    v.io["light1"]["type"] = "int"
+    assert str(v.io["light1"]) == "({'type': 'bool'})[{'type': 'int'}]"
+    v.io.commit()
+    assert str(v.io["light1"]) == "({'type': 'int'})[{}]"
+

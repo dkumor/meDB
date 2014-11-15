@@ -31,7 +31,9 @@ class MongoObject(object):
         #Return the newest values (including cached and uncommitted changes)
         if (idx in self._cache):
             return self._cache[idx]
-        return self._data[idx]
+        if (idx in self._data):
+            return self._data[idx]
+        return None
 
     def __setitem__(self,idx,val):
         #Sets the given item to the correct value
@@ -61,24 +63,52 @@ class MongoObject(object):
 
     def getChild(self,idx):
         #Gets the child as a mongoObject
-        return MongoObject(self._db,self._find,self.getChildPath(idx),self[idx],self.autocommit)
+        if (self[idx] is not None):
+            return MongoObject(self._db,self._find,self.getChildPath(idx),self[idx],self.autocommit)
+        return None
 
     def commit(self):
         #Commits the changes made to the object, and clears the cache
         insertdict = {}
+        deletedict = {}
         g = ""
         if (len(self._get)>=1):
             g = self._get+"."
         for k in self._cache:
-            self._data[k] = self._cache[k]
-            insertdict[g+k] = self._cache[k]
+            if (self._cache[k] is None):
+                #We delete the element
+                if (k in self._data):
+                    del self._data[k]
+                deletedict[g+k] = True
+            else:
+                self._data[k] = self._cache[k]
+                insertdict[g+k] = self._cache[k]
 
         self._cache = {}
-        if (len(insertdict)>0):
-            self._db.update(self._find,{"$set": insertdict})
 
+        q = {}
+        if (len(insertdict)>0):
+            q["$set"] = insertdict
+        if (len(deletedict)>0):
+            q["$unset"] = deletedict
+        
+        if (len(q)>0):
+            self._db.update(self._find,q)
+
+    def delete(self,idx):
+        self[idx] = None    #Setting to None deletes
+    def contains(self,a):
+        if (a in self._cache):
+            return (self._cache[a] is not None)
+        if (a in self._data):
+            return True
+        else: return False
+    def __contains__(self,a):
+        return self.contains(a)
     def __str__(self):
         return "("+str(self._data)+")["+str(self._cache)+"]"
+    def __len__(self):
+        return len(self._data)
 
 if (__name__=="__main__"):
     from pymongo import MongoClient
