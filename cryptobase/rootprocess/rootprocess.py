@@ -11,31 +11,31 @@ def runcommand(cmd,logger,pipe,pipelock,lks):
 
     try:
         if (cmd["cmd"] == "create"):
-            logger.info("root: LUKSCreate %(container)s (%(size)sM)",cmd)
+            logger.info("LUKSCreate %(container)s (%(size)sM)",cmd)
             lks.create(cmd["container"],cmd["pass"],cmd["size"])
-            logger.info("root: LUKSCreate %(container)s OK",cmd)
+            logger.info("LUKSCreate %(container)s OK",cmd)
         elif (cmd["cmd"] == "open"):
-            logger.info("root: LUKSOpen %(container)s",cmd)
+            logger.info("LUKSOpen %(container)s",cmd)
             lks.open(cmd["container"],cmd["pass"])
-            logger.info("root: LUKSOpen %(container)s OK",cmd)
+            logger.info("LUKSOpen %(container)s OK",cmd)
         elif (cmd["cmd"] == "close"):
-            logger.info("root: LUKSClose %(container)s",cmd)
+            logger.info("LUKSClose %(container)s",cmd)
             lks.close(cmd["container"])
-            logger.info("root: LUKSClose %(container)s OK",cmd)
+            logger.info("LUKSClose %(container)s OK",cmd)
         elif (cmd["cmd"] == "panic"):
 
             if (cmd["container"]=="*"):
-                logger.critical("root: CRYPTO TOTAL PANIC - HOLY FUCKING SHIT, WE'RE FUCKED")
+                logger.critical("CRYPTO TOTAL PANIC - HOLY FUCKING SHIT, WE'RE FUCKED")
                 lks.panicall()
-                logger.warning("root: PANIC: All containers closed.")
+                logger.warning("PANIC: All containers closed.")
 
             else:
-                logger.warning("root: PANIC - %(container)s",cmd)
+                logger.warning("PANIC - %(container)s",cmd)
                 lks.panic(cmd["container"])
-                logger.warning("root: PANIC %(container)s closed",cmd)
+                logger.warning("PANIC %(container)s closed",cmd)
 
     except Exception, e:
-        logger.warning("root: RunCommand exception: %s"%(str(e),))
+        logger.warning("RunCommand exception: %s"%(str(e),))
         out = str(e)
 
 
@@ -44,11 +44,11 @@ def runcommand(cmd,logger,pipe,pipelock,lks):
     pipe.send((cmd["id"],out))
     pipelock.release()
 
-def run(pipe,logger,config):
-    logger.info("root: started")
+def run(pipe,logger,user,dbdir,mntdir):
+    logger.info("started filecrypto subprocess")
 
     #First things first, set up luks
-    lks = MultiLuks(config["user"],config["dbdir"],config["mntdir"])
+    lks = MultiLuks(user,dbdir,mntdir)
 
     #The pipe is going to be accessed from multiple threads, so we need
     #   to lock it
@@ -75,7 +75,7 @@ def run(pipe,logger,config):
 
         #Shut down if we get the shutdown signal
         if (r=="EOF"):
-            logger.info("root: Shutting down command process")
+            logger.info("Shutting down command process")
             break
         else:
             #Each command is run in an independent python thread, so that many commands
@@ -94,12 +94,12 @@ def run(pipe,logger,config):
             threads = [t for t in threads if not t.handled]
 
     #Wait until all threads join
-    logger.info("root: Waiting for threads to join")
+    logger.info("Waiting for threads to join")
     for i in threads:
         i.join()
-    logger.info("root: Shutting down all containers")
+    logger.info("Shutting down all containers")
     lks.panicall()
-    logger.info("root: finished")
+    logger.info("subprocess exiting.")
 
 if (__name__=="__main__"):
     from multiprocessing import Process, Pipe
@@ -112,12 +112,6 @@ if (__name__=="__main__"):
     if (os.path.exists("./test_mnt")):
         shutil.rmtree("./test_mnt")
 
-    conf= {
-        "mntdir":"./test_mnt",
-        "dbdir":"./test_db",
-        "user": "cryptomongo"
-    }
-
     logger = logging.getLogger("rootprocess")
     logging.basicConfig()
     logger.setLevel(logging.INFO)
@@ -126,7 +120,7 @@ if (__name__=="__main__"):
 
 
 
-    child = Process(target=run,args=(child_pipe,logger,conf,))
+    child = Process(target=run,args=(child_pipe,logger,"daniel","./test_db","./test_mnt"))
     child.start()
 
 

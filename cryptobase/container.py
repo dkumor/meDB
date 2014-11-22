@@ -1,6 +1,5 @@
 
 import os
-import cryptfile
 
 class DatabaseContainer(object):
     """
@@ -8,103 +7,47 @@ class DatabaseContainer(object):
     once it is started up
     """
 
-    fileLocation = "./db/"
-    mntLocation = "./mnt/"
+    crypto=None
+
     def __init__(self,dbid):
+        if (self.crypto is None):
+            raise Exception("FileCrypto not set")
+        
         self.dbid = dbid
 
-        #We must do all file operations relative to the current directroy due to issues with
-        #   permissions in parent directories.
-        floc = os.path.relpath(self.fileLocation)
-        tloc = os.path.relpath(self.mntLocation)
-
-        #Create file location folder if it doesnt exist
-        if not (os.path.isdir(floc)):
-            if (os.path.exists(floc)):
-                raise Exception(floc+" is not a directory!")
-            else:
-                os.mkdir(floc)
-
-        if not (os.path.isdir(tloc)):
-            if (os.path.exists(tloc)):
-                raise Exception(tloc+" is not a directory!")
-            else:
-                os.mkdir(tloc)
-
-        #Create data file and decryption locations
-        self.datafile = os.path.join(floc,dbid)
-        self.decloc = os.path.join(tloc,dbid)
-
-        #Create crypto object for reading encrypted database
-        self.crypto = cryptfile.FileCrypto(self.dbid)
-
+        
     def exists(self):
-        return os.path.exists(self.datafile)
+        return self.crypto.exists(self.dbid)
 
     def isopen(self):
-        #We assume that a closed container deletes its mount directory
-        if (os.path.exists(self.decloc)):
-            if (os.path.ismount(self.decloc)):
-                return True
-            #If the file exists, but is not mounted, then it was probably panic'd earlier
-        return False
+        return self.crypto.isopen(self.dbid)
 
     def create(self,password,size=10000):
-        if (self.exists()):
-            raise Exception("Data file already exists!")
-        os.mkdir(self.decloc)
-
-        try:
-            self.crypto.create(password,size)
-        except:
-            os.rmdir(self.decloc)
-            raise
+        self.crypto.create(self.dbid,password,size)
 
     def open(self,password):
         if self.isopen():
             raise Exception("Container already open!")
 
-        #Panic does nto automatically delete the directories, so only create if necessary
-        if not (os.path.exists(self.decloc)):
-            os.mkdir(self.decloc)
-        else:
-            if (not os.path.isdir(self.decloc) or os.path.ismount(self.decloc)):
-                raise Exception("It looks like the container is open... Did stuff crash earlier?")
-        try:
-            self.crypto.open(password)
-        except:
-            os.rmdir(self.decloc)
-            raise
+        self.crypto.open(self.dbid,password)
+        
 
     def close(self):
-        self.crypto.close()
-        if (os.path.isdir(self.decloc)):    #Deletes the decryption directory
-            os.rmdir(self.decloc)
+        self.crypto.close(self.dbid)
+        
 
     def panic(self):
-        self.crypto.panic()
-        if (os.path.isdir(self.decloc)):
-            os.rmdir(self.decloc)
+        self.crypto.panic(self.dbid)
+        
 
     def delete(self):
-        self.panic()
-        os.remove(self.datafile)
+        self.crypto.delete(self.dbid)
 
     def name(self):
         return self.dbid
 
 if (__name__=="__main__"):
-
-    import sys
-
-    sys.path.append(os.path.abspath("../"))
-    sys.path.append(os.path.abspath("../../"))
-    from rootprocess.rootprocess import run
-    from rootcommander import RootCommander
-    from multiprocessing import Process, Pipe
-    import logging
-    import os
-
+    from filecrypto import FileCrypto
     import shutil
 
     if (os.path.exists("./test_db")):
@@ -112,32 +55,13 @@ if (__name__=="__main__"):
     if (os.path.exists("./test_mnt")):
         shutil.rmtree("./test_mnt")
 
-    conf= {
-        "mntdir":"./test_mnt",
-        "dbdir":"./test_db",
-        "user": "cryptomongo"
-    }
+    f = FileCrypto("daniel","./test_db","./test_mnt")
 
-    logger = logging.getLogger("container")
-    logging.basicConfig()
-    logger.setLevel(logging.INFO)
-
-    p, child_pipe = Pipe()
-
-
-
-    child = Process(target=run,args=(child_pipe,logger,conf,))
-    child.start()
-
-
-    rc = RootCommander(p)
-    cryptfile.FileCrypto.rootcommander = rc
-    DatabaseContainer.fileLocation = "./test_db"
-    DatabaseContainer.mntLocation = "./test_mnt"
+    f.droproot()
 
     pwd = "testpassword"
 
-
+    DatabaseContainer.crypto = f
 
     x = DatabaseContainer("testContainer")
 
@@ -164,13 +88,13 @@ if (__name__=="__main__"):
 
     print "Cleaning up"
 
-
-    shutil.rmtree(DatabaseContainer.fileLocation)
-    shutil.rmtree(DatabaseContainer.mntLocation)
+    if (os.path.exists("./test_db")):
+        shutil.rmtree("./test_db")
+    if (os.path.exists("./test_mnt")):
+        shutil.rmtree("./test_mnt")
 
     assert not x.exists()
 
-    p.send("EOF")
-    child.join()
+    f.join()
 
     print "Done"
