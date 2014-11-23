@@ -71,17 +71,18 @@ def generateX509(certfile,keyfile,pubkeyfile=None,
 
 class KeyManager(object):
     def __init__(self,cacert,cakey):
-        #Given a CA's key and certificate (file locations), we can easily manage all certificates.
-        self.reload()
-    def reload(self,cacert,cakey):
-        with open(cacert,"r") as cf:
-            self.ca_cert = crypto.load_certificate(crypto.FILETYPE_PEM,cf.read())
-        with open(cakey,"r") as ck:
-            self.ca_key = crypto.load_privatekey(crypto.FILETYPE_PEM,ck.read())
+        self.ca_cert = cacert
+        self.ca_key = cakey
+    #Generate 
+    def genkey(self,certfile,keyfile,pubkeyfile=None):
+        generateX509(certfile,keyfile,pubkeyfile,self.ca_cert,self.ca_key)
+    def genca(self,certfile,keyfile,pubkeyfile=None):
+        generateX509(certfile,keyfile,pubkeyfile,self.ca_cert,self.ca_key,isCA=True)
 
-    #Generates an SSL key/cert/pubkey combo
-    def generate(self,certf,keyf,pkeyf):
-        pass
+    @staticmethod
+    def genRoot(certfile="./ca_cert.pem",keyfile="./ca_key.pem"):
+        #Generates a root CA
+        generateX509(certfile,keyfile,isCA=True)
 
 
 if (__name__=="__main__"):
