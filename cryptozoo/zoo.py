@@ -74,30 +74,40 @@ class ZooConnection(object):
             self.close()
 
 if (__name__=="__main__"):
+    import sys
     import shutil
     if (os.path.exists("./tmp")):
         shutil.rmtree("./tmp")
 
     os.makedirs("./tmp")
-    t = time.time()
-    c = ZooConnection("./tmp")
-    createTime = time.time()-t
 
-    c.cursor().create("/test",b"This is cool",makepath=True)
+    if (len(sys.argv) > 1 and sys.argv[1]=="run"):
+        c = ZooConnection("./tmp")
+        print "RUNNING",c.port
+        raw_input("Press enter to exit")
+        c.close()
+    else:
+        t = time.time()
+        c = ZooConnection("./tmp")
+        createTime = time.time()-t
 
-    t=time.time()
-    c.close()
-    closeTime = time.time()-t
+        c.cursor().create("/test",b"This is cool",makepath=True)
 
-    t = time.time()
-    c = ZooConnection("./tmp")
-    openTime = time.time()-t
-    dta,stat = c.cursor().get("/test")
-    t=time.time()
-    c.close()
-    closeTime2 = time.time()-t
+        t=time.time()
+        c.close()
+        closeTime = time.time()-t
+
+        t = time.time()
+        c = ZooConnection("./tmp")
+        openTime = time.time()-t
+        dta,stat = c.cursor().get("/test")
+        t=time.time()
+        c.close()
+        closeTime2 = time.time()-t
+    
+        print dta,stat
+        print "Create Time:",createTime
+        print "Open Time:",openTime
+        print "Close Time",closeTime,closeTime2
+
     shutil.rmtree("./tmp")
-    print dta,stat
-    print "Create Time:",createTime
-    print "Open Time:",openTime
-    print "Close Time",closeTime,closeTime2
