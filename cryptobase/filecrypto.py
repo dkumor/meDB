@@ -35,6 +35,7 @@ class FileCrypto(object):
             ch.setLevel(logging.INFO)
             ch.setFormatter(logging.Formatter("%(levelname)s:FileCrypto:%(created)f - %(message)s"))
             logger.addHandler(ch)
+            logger.propagate= False
         self.logger = logger
 
 

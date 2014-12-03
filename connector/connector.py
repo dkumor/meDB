@@ -17,19 +17,26 @@ class Connection(object):
         self.zoo.add_listener(self.state_listener)
         self.zoo.start()
 
-        self.zoo.ensure_path(self.rootpath+"/"+self.cname)
-        self.zoo.create(self.rootpath+"/"+self.cname+"/" + self.name,ephemeral=True)
-        print "DONE CREATING"
+        self.registerme()
+
+
+    def registerme(self):
+        #Notifies the zookeeper that this server is connected
+        basepath = self.rootpath+"/"+self.cname+"/"+ self.name + "/"
+
+        #Creates the entire pathway to db list
+        self.zoo.ensure_path(basepath+"db")
+        #Create ephemeral node which represents connection status of this node
+        self.zoo.create(basepath+"isconnected",ephemeral=True)
+        
 
     def state_listener(self,state):
         if (state == KazooState.CONNECTED):
             print "Connected"
-
         elif (state == KazooState.SUSPENDED):
             print "Got disconnected"
         else:
             print "Connection lost."
-            
 
     def close(self):
         self.zoo.stop()
@@ -41,13 +48,31 @@ class Connection(object):
 
 
 if (__name__=="__main__"):
+
+    import shutil
+    import time
+
+
+    if (os.path.exists("./tmp")):
+        shutil.rmtree("./tmp")
+
+    os.makedirs("./tmp")
+
+    from server import ZooServer
+
     import logging
     logging.basicConfig()
 
-    zh = "localhost:41760"
-    #zoo = KazooClient(hosts=zh)
-    #zoo.start()
+    zooc = ZooServer("./tmp")
+
+
+    zh = "localhost:"+str(zooc.port)
+    
     c = Connection(zh)
-    #print "CHILDREN:",zoo.get_children("/")
     c.close()
-    #print "CHILDREN:",zoo.get_children("/")
+    
+
+    time.sleep(1.0)
+    zooc.close()
+
+    shutil.rmtree("./tmp")
