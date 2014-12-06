@@ -17,8 +17,10 @@ from subprocess32 import call
 import usertools
 from rootprocess import rootprocess
 
+logger = logging.getLogger("FileCrypto")
+
 class FileCrypto(object):
-    def __init__(self,owner,fileDir="./file",mntDir="./mnt",logger=None,mkusr=False):
+    def __init__(self,owner,fileDir="./file",mntDir="./mnt",mkusr=False):
         #fileDir: The directory where all cryptoContainers are held
         #mntDir: The EMPTY directory where said containers are mounted
         #owner: The username which will own the containers
@@ -27,18 +29,6 @@ class FileCrypto(object):
 
         self.owner = owner
 
-        #Set up logging
-        if (logger is None):
-            logger = logging.getLogger("FileCrypto")
-            logger.setLevel(logging.INFO)
-            ch = logging.StreamHandler()
-            ch.setLevel(logging.INFO)
-            ch.setFormatter(logging.Formatter("%(levelname)s:FileCrypto:%(created)f - %(message)s"))
-            logger.addHandler(ch)
-            logger.propagate= False
-        self.logger = logger
-
-
         #Make sure we're root
         if (os.getuid() != 0):
             raise Exception("Must be root to start FileCrypto")
@@ -46,7 +36,7 @@ class FileCrypto(object):
         #Makes sure that the owner exists, optionally creating
         if not (usertools.userexists(owner)):
             if (create):
-                self.logger.warn("User %s does not exist, creating."%(owner,))
+                logger.warn("User %s does not exist, creating."%(owner,))
                 usertools.mkusr(user)
             else: raise Exception("User %s does not exist"%(owner,))
 
@@ -76,7 +66,7 @@ class FileCrypto(object):
         parent_pipe, child_pipe = Pipe()
         self.pipe = parent_pipe
         self.process = Process(target=rootprocess.run,
-                               args=(child_pipe,logger,owner,self.filedir,self.mntdir))
+                               args=(child_pipe,owner,self.filedir,self.mntdir))
 
         self.process.start()
 
@@ -98,7 +88,7 @@ class FileCrypto(object):
 
     
     def droproot(self):
-        self.logger.info("Dropping to user %s"%(self.owner,))
+        logger.info("Dropping to user %s"%(self.owner,))
         usertools.drop_privileges(self.owner)
 
     def recv(self):
@@ -244,7 +234,7 @@ class FileCrypto(object):
 
     def delete(self,container):
         self.panic(container)
-        self.logger.warning("DELETE %s"%(container,))
+        logger.warning("DELETE %s"%(container,))
         os.remove(os.path.join(os.path.relpath(self.filedir),container))
 
     def path(self,container):
@@ -252,7 +242,7 @@ class FileCrypto(object):
 
 
 if (__name__=="__main__"):
-
+    logging.basicConfig()
     import shutil
 
     if (os.path.exists("./test_db")):

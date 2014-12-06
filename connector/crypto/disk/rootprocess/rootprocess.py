@@ -2,11 +2,13 @@ import signal
 import threading
 import time
 import os
+import logging
 
 from luks.multiluks import MultiLuks
 
+logger = logging.getLogger("FileCrypto.root")
 
-def runcommand(cmd,logger,pipe,pipelock,lks):
+def runcommand(cmd,pipe,pipelock,lks):
     out = "OK"  #The output of a successful command is "OK"
 
     try:
@@ -44,7 +46,7 @@ def runcommand(cmd,logger,pipe,pipelock,lks):
     pipe.send((cmd["id"],out))
     pipelock.release()
 
-def run(pipe,logger,user,dbdir,mntdir):
+def run(pipe,user,dbdir,mntdir):
     logger.info("started filecrypto subprocess")
 
     #First things first, set up luks
@@ -80,7 +82,7 @@ def run(pipe,logger,user,dbdir,mntdir):
         else:
             #Each command is run in an independent python thread, so that many commands
             #   can be executed at the same time
-            t = threading.Thread(target=runcommand,args = (r,logger,pipe,pipelock,lks))
+            t = threading.Thread(target=runcommand,args = (r,pipe,pipelock,lks))
             t.daemon =False
             t.start()
             t.handled = False
@@ -102,8 +104,9 @@ def run(pipe,logger,user,dbdir,mntdir):
     logger.info("subprocess exiting.")
 
 if (__name__=="__main__"):
+    logging.basicConfig()
+
     from multiprocessing import Process, Pipe
-    import logging
 
     import shutil
 
@@ -112,15 +115,13 @@ if (__name__=="__main__"):
     if (os.path.exists("./test_mnt")):
         shutil.rmtree("./test_mnt")
 
-    logger = logging.getLogger("rootprocess")
-    logging.basicConfig()
-    logger.setLevel(logging.INFO)
+    
 
     p, child_pipe = Pipe()
 
 
 
-    child = Process(target=run,args=(child_pipe,logger,"daniel","./test_db","./test_mnt"))
+    child = Process(target=run,args=(child_pipe,"daniel","./test_db","./test_mnt"))
     child.start()
 
 

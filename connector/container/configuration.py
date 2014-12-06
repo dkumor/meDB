@@ -2,6 +2,7 @@ import argparse
 import ConfigParser
 import os
 import logging
+import logging.handlers
 
 class Configuration(object):
     """
@@ -16,10 +17,8 @@ class Configuration(object):
         "server": {
             "port": {"s": "p","help": "port number to launch server on","type": int},
             "dbdir": {"s":"d","help": "directory where dbfiles are located","default":"./db"},
-            "mntdir": {"s":"m","help": "directory where dbfiles will be mounted","default":"./mnt"},
             "user": {"s": "u","help": "user from which to run"},
             "password": {"help": "Password to decrypt dbfile"},
-            "dbfile": {"help": "The dbfile to open"},
             "connector":{"help": "Address of connector server"}
         }
         }
@@ -33,20 +32,12 @@ class Configuration(object):
             #Check if args is a preset
             if (args in Configuration.argtypes):
                 args = Configuration.argtypes[args]
-            cmdline = self.initArgs(description,args)
-
-            #Load a config file if given
-            if (cmdline.config is not None):
-                Configuration.cfg = self.loadFile(cmdline.config)
-            else:
-                Configuration.cfg = {}
-
-            #The logfile is a default argument, so set it here
-            if (cmdline.config is not None):
-                Configuration.cfg["logfile"] = cmdline.config
-
-            #This automatically loads into cfg variable
-            self.loadCommandline(cmdline,args)
+            
+            self.initCfg(description,args)
+            
+            #If there is a log file set up, write to it!
+            if ("logfile" in self.cfg and self.cfg["logfile"] is not None):
+                self.logfile(self.cfg["logfile"])
 
     def initLogger(self):
         logger = logging.getLogger()
@@ -58,8 +49,11 @@ class Configuration(object):
         ch.setLevel(logging.INFO)
         ch.setFormatter(logging.Formatter(Configuration.logformat))
         logger.addHandler(ch)
+
+        self.logger = logging.getLogger("setup")
         
     def logfile(self,fname):
+        self.logger.info("Writing to log '%s'",fname)
         #Add a log file to which to log
         ch = logging.handlers.RotatingFileHandler(fname,maxBytes = 1024*1024*10,backupCount=5)
         ch.setLevel(logging.INFO)
@@ -68,8 +62,32 @@ class Configuration(object):
         logging.getLogger().addHandler(ch)
         
 
-    def initArgs(self,description,args):
+    def initCfg(self,description,args):
+        self.cfg = {"name": "default"}
+
+        #Add default values to config options
+        for arg in args:
+            if ("default" in args[arg]):
+                self.cfg[arg] = args[arg]["default"]
+
+
         parser = argparse.ArgumentParser(description=description)
+
+        for arg in args:
+            a  = {"help": args[arg]["help"]}
+            if ("type" in args[arg]):
+                a["type"] = args[arg]["type"]
+            sec = None
+            if ("s" in args[arg]):
+                sec = "-"+args[arg]["s"]
+            arg= "--"+arg
+
+            if (sec is not None):
+                parser.add_argument(sec,arg,**a)
+            else:
+                parser.add_argument(arg,**a)
+
+        #Now load the default stuff that gets applied each time
 
         #The configuration file to load.
         parser.add_argument("-c","--config",help="The configuration file to use")
@@ -77,36 +95,57 @@ class Configuration(object):
         #The following options override values within the configuration file
         parser.add_argument("-l","--logfile",help="The log file location")
 
+        parser.add_argument("name",nargs="?",help="The name of config to load")
+
+        #Parse the command line
+        cmdline = vars(parser.parse_args())
+
+        if (cmdline["config"] is not None):
+            self.loadFile(cmdline["config"])
+         
+
+        #Now load the cmdline args to overload any config file settings
+        for key in cmdline:
+            if (cmdline[key] is not None):
+                self.cfg[key] = cmdline[key]
+
+        #Finally, make sure all args are of the correct type
         for arg in args:
-            a  = {"help": args[arg]["help"]}
-            if ("type" in args[arg]):
-                a["type"] = args[arg]["type"]
-            if ("default" in args[arg]):
-                a["default"] = args[arg]["default"]
-            if ("nargs" in args[arg]):
-                a["nargs"] = args[arg]["nargs"]
-            sec = None
-            if ("s" in args[arg]):
-                sec = "-"+args[arg]["s"]
+            if ("type" in args[arg] and arg in self.cfg):
+                self.cfg[arg] = args[arg]["type"](self.cfg[arg])
 
-            if (arg[0]==">"):
-                arg = arg[1:]
-            else:
-                arg= "--"+arg
+    def loadFile(self,fname):
+        self.logger.info("Loading config '%s'",fname)
+        if not (os.path.exists(fname)):
+            raise Exception("Could not find configuration file")
 
-            if (sec is not None):
-                parser.add_argument(sec,arg,**a)
-            else:
-                parser.add_argument(arg,**a)
+        #Reads configuration file
+        config = ConfigParser.SafeConfigParser()
+        config.read(fname)
 
-        return parser.parse_args()
+        def loadSettings(name):
+            if (name!="default" and not config.has_section(name)):
+                return
 
+            for option in config.options(name):
+                self.cfg[option] = config.get(name,option)
 
-    def loadFile(self,fname,dbname=None):
-        pass
+        loadSettings("default")
 
-    def loadCommandline(self,cmd,args):
-        pass
+        oldname = "default"
+        while (oldname != self.cfg["name"]):
+            oldname = self.cfg["name"]
+            loadSettings(self.cfg["name"])
+            
+    def __str__(self):
+        return str(self.cfg)
+
+    def __getitem__(self,i):
+        if i in self.cfg:
+            return self.cfg[i]
+        return None
+    def keys(self):
+        return self.cfg.keys()
 
 
 if (__name__=="__main__"):
@@ -114,6 +153,6 @@ if (__name__=="__main__"):
 
     l.error("Here is 1")
 
-    Configuration()
+    print Configuration()
 
     l.error("Here is 2")
