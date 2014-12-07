@@ -4,6 +4,8 @@ import os
 import logging
 import logging.handlers
 
+logger = logging.getLogger("Setup")
+
 class Configuration(object):
     """
     This class holds the configuration of the program. It loads every parameter both from files
@@ -13,31 +15,22 @@ class Configuration(object):
     cfg = None
     logformat = "%(levelname)s:%(name)s:%(created)f - %(message)s"
 
-    argtypes = {
-        "server": {
-            "port": {"s": "p","help": "port number to launch server on","type": int},
-            "dbdir": {"s":"d","help": "directory where dbfiles are located","default":"./db"},
-            "user": {"s": "u","help": "user from which to run"},
+    def __init__(self,args = {
             "password": {"help": "Password to decrypt dbfile"},
             "connector":{"help": "Address of connector server"}
-        }
-        }
-
-    def __init__(self,rootname=None,description="",args = "server"):
+        },description=""):
 
         #Run setup only if the config is not None
         if (Configuration.cfg is None):
             self.initLogger()
-
-            #Check if args is a preset
-            if (args in Configuration.argtypes):
-                args = Configuration.argtypes[args]
             
             self.initCfg(description,args)
             
             #If there is a log file set up, write to it!
             if ("logfile" in self.cfg and self.cfg["logfile"] is not None):
                 self.logfile(self.cfg["logfile"])
+
+            logger.info("%s",str(self.cfg))
 
     def initLogger(self):
         logger = logging.getLogger()
@@ -49,11 +42,9 @@ class Configuration(object):
         ch.setLevel(logging.INFO)
         ch.setFormatter(logging.Formatter(Configuration.logformat))
         logger.addHandler(ch)
-
-        self.logger = logging.getLogger("setup")
         
     def logfile(self,fname):
-        self.logger.info("Writing to log '%s'",fname)
+        logger.info("Writing to log '%s'",fname)
         #Add a log file to which to log
         ch = logging.handlers.RotatingFileHandler(fname,maxBytes = 1024*1024*10,backupCount=5)
         ch.setLevel(logging.INFO)
@@ -115,7 +106,7 @@ class Configuration(object):
                 self.cfg[arg] = args[arg]["type"](self.cfg[arg])
 
     def loadFile(self,fname):
-        self.logger.info("Loading config '%s'",fname)
+        logger.info("Loading config '%s'",fname)
         if not (os.path.exists(fname)):
             raise Exception("Could not find configuration file")
 
