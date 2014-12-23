@@ -35,9 +35,9 @@ class FileCrypto(object):
 
         #Makes sure that the owner exists, optionally creating
         if not (usertools.userexists(owner)):
-            if (create):
+            if (mkusr):
                 logger.warn("User %s does not exist, creating."%(owner,))
-                usertools.mkusr(user)
+                usertools.mkusr(owner)
             else: raise Exception("User %s does not exist"%(owner,))
 
 
@@ -47,20 +47,21 @@ class FileCrypto(object):
 
         #Now, make sure that the fileDir exists
         if not (os.path.isdir(self.filedir)):
+            logger.info("Setting up database folder")
             if (os.path.exists(self.filedir)):
+                logger.error("'%s' is not a directory!",self.filedir)
                 raise Exception(self.filedir+" is not a directory!")
             else:
-                os.mkdir(self.filedir)
+                os.mkdir(self.filedir,000)
         if not (os.path.isdir(self.mntdir)):
+            logger.info("Setting up mountpoints")
             if (os.path.exists(self.mntdir)):
+                logger.error("'%s' is not a directory!",self.mntdir)
                 raise Exception(self.mntdir+" is not a directory!")
             else:
-                os.mkdir(self.mntdir)
-
-        #Change ownership of directories to owner (recursively)
-        call(["chown","-R",owner+":"+owner,self.filedir])
-        call(["chown","-R",owner+":"+owner,self.mntdir])
-
+                #Need whole path at least readable for java to do anything. I HATE java. With a passion.
+                #Honestly, "my way of the highway" in everything. No hacking allowed.
+                os.mkdir(self.mntdir,0711)
 
         #Creates a pipe to link the two subprocesses, and set the process
         parent_pipe, child_pipe = Pipe()

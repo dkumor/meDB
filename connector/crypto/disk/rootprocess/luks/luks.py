@@ -69,8 +69,9 @@ class CryptoLuks(object):
             call(["chown",owner+":"+owner,self.mountdir])
             call(["chown",owner+":"+owner,self.cryptfile])
 
-        #For security, only owner can even touch the directory.
+        #For security, only owner can even touch the directory or the mountfile
         call(["chmod","700",self.mountdir])
+        call(["chmod","700",self.cryptfile])
 
     def open(self,password, owner = None):
         """Opens the LUKS file and mounts it"""

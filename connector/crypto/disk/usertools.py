@@ -23,7 +23,7 @@ def drop_privileges(username):
 
 def mkusr(username):
     #Creates the given user
-    call(["useradd","-M","-r","-s","/bin/false","-c","Cryptomongo user",username])
+    call(["useradd","-M","-r","-s","/bin/false","-c","Robot user",username])
 
 def delusr(username):
     #Deletes the user

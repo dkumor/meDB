@@ -127,7 +127,7 @@ class Configuration(object):
         while (oldname != self.cfg["name"]):
             oldname = self.cfg["name"]
             loadSettings(self.cfg["name"])
-            
+
     def __str__(self):
         return str(self.cfg)
 
