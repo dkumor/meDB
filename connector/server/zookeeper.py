@@ -6,6 +6,7 @@ logger = logging.getLogger("ZooKeeper")
 import glob
 import os
 import signal
+from functools import partial
 from subprocess32 import Popen
 
 from kazoo.client import KazooClient
@@ -62,6 +63,8 @@ class Zookeeper(object):
     def __del__(self):
         if (self.zoo is not None):
             self.close()
+            
+
 
 if (__name__=="__main__"):
     from ..setup.server import ServerSetup
@@ -70,7 +73,6 @@ if (__name__=="__main__"):
     
     try:
         zk = Zookeeper(s.port)
-        #zk = Zookeeper(5432)
         raw_input()
         zk.close()
     except:
