@@ -4,6 +4,7 @@ Initialize the basics.
 
 import logging
 import os
+import socket
 
 from configuration import Configuration
 from file import FileSetup
@@ -33,7 +34,8 @@ class ServerSetup(object):
             "user": {"s": "u","help": "user from which to run","default":"connector"},
             "password": {"help": "Password to decrypt dbfile"},
             "connector":{"help": "Address of connector server"},
-            "create":{"help": "If this is set, create the dbfile with the given size if does not exist","type": int}
+            "create":{"help": "If this is set, create the dbfile with the given size if does not exist","type": int},
+            "hostname": {"help": "The hostname (or ip) to use for registering the server","default":socket.gethostname()}
         },description)
 
         self.fs = FileSetup(cfg["dbdir"],cfg["user"],cfg["name"],password=cfg["password"],create=cfg["create"],
@@ -46,6 +48,8 @@ class ServerSetup(object):
         #Create a random port if port is not set
         if self.port <= 0:
             self.port = int(get_open_port())
+
+        self.hostname = str(cfg["hostname"])
 
         logger.info("Using port %i for server",self.port)
 
