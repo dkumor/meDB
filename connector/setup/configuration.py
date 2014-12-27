@@ -13,7 +13,8 @@ class Configuration(object):
     """
 
     cfg = None
-    logformat = "%(levelname)s:%(name)s:%(created)f - %(message)s"
+    console_logformat = "%(name)s:%(levelname)s - %(message)s"
+    file_logformat = "%(levelname)s:%(name)s:%(created)f - %(message)s"
 
     def __init__(self,args = {
             "password": {"help": "Password to decrypt dbfile"},
@@ -40,7 +41,7 @@ class Configuration(object):
         #Write log messages to console
         ch = logging.StreamHandler()
         ch.setLevel(logging.INFO)
-        ch.setFormatter(logging.Formatter(Configuration.logformat))
+        ch.setFormatter(logging.Formatter(Configuration.console_logformat))
         logger.addHandler(ch)
         
     def logfile(self,fname):
@@ -48,7 +49,7 @@ class Configuration(object):
         #Add a log file to which to log
         ch = logging.handlers.RotatingFileHandler(fname,maxBytes = 1024*1024*10,backupCount=5)
         ch.setLevel(logging.INFO)
-        ch.setFormatter(logging.Formatter(Configuration.logformat))
+        ch.setFormatter(logging.Formatter(Configuration.file_logformat))
         
         logging.getLogger().addHandler(ch)
         

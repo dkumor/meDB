@@ -1,6 +1,4 @@
 import logging
-
-
 logger = logging.getLogger("ZooKeeper")
 
 import glob
@@ -41,12 +39,12 @@ class Zookeeper(object):
         cmd = ["java","-Dzookeeper.log.dir=./","-Dzookeeper.root.logger=INFO,CONSOLE",
                 "-cp",classpath,"org.apache.zookeeper.server.quorum.QuorumPeerMain",str(self.port),self.folder]
         
-        logger.info("Starting server on port %i...",self.port)
+        logger.info("run command: %s",str(cmd))
         self.zoo = Popen(cmd)
 
-        host = hostname+":"+str(self.port)
+        self.host = hostname+":"+str(self.port)
 
-        self.connection = Connection(host,"zookeeper",host)
+        self.connection = Connection(self.host,"zookeeper",self.host)
 
         logger.info("server running...")
 

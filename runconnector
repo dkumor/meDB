@@ -1,2 +1,2 @@
 #!/bin/sh
-sudo python -m connector.server.zookeeper -c setup.cfg
+sudo python connect.py -c setup.cfg

@@ -54,19 +54,21 @@ class Connection(object):
         if (name is None):
             name = self.cname
 
-        logging.info("Getting config for '%s'",name)
+        logger.info("Getting config for '%s'",name)
 
         #Load the general configuration for objects of the given type
         # - need to handle error path not exist
         data,stat = self.zoo.get(self.rootpath+"/"+name)
-
-        return BSON.decode(data)
+        if (data!=""):
+            return BSON.decode(data)
+        else:
+            return None
 
     def setconfiguration(self,config,name=None):
         if (name is None):
             name = self.cname
 
-        logging.info("Setting config for '%s'",name)
+        logger.info("Setting config for '%s'",name)
 
         #Set the general configuration for objects of the given type
         self.zoo.set(self.rootpath+"/"+name,BSON.encode(config))

@@ -56,6 +56,9 @@ class ServerSetup(object):
     def close(self):
         self.fs.close()
 
+    def __del__(self):
+        self.close()
+
 
 if (__name__=="__main__"):
     s= ServerSetup()
