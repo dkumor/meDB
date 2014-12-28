@@ -23,7 +23,7 @@ class Connection(object):
         self.zoo.add_listener(self.state_listener)
         self.zoo.start()
 
-        self.registerme()
+        #self.registerme()
 
 
     def registerme(self):

@@ -89,6 +89,9 @@ class MongoDB(object):
         if (self.client==None):
             self.close()
             raise Exception("Could not connect to database")
+
+        #Register the client as ready
+        self.connection.registerme()
             
     def cursor(self):
         return self.client

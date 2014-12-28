@@ -27,6 +27,7 @@ class ServerSetup(object):
         
         #Set the default port
         self.port = port
+        self.fs = None
 
         cfg = Configuration({
             "port": {"s": "p","help": "port number to launch server on","type": int},
@@ -54,7 +55,9 @@ class ServerSetup(object):
         logger.info("Using port %i for server",self.port)
 
     def close(self):
-        self.fs.close()
+        if (self.fs is not None):
+            self.fs.close()
+        self.fs = None
 
     def __del__(self):
         self.close()
