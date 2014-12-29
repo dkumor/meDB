@@ -7,9 +7,10 @@ import threading
 from subprocess32 import Popen,PIPE,STDOUT
 
 from ..connection import Connection
+from ..setup.server import get_open_port
 
 class BaseServer(object):
-    def __init__(self,name,zoohost,hostname,port,folder,logger,minspace=0.):
+    def __init__(self,name,zoohost,folder,logger,hostname,port=None,minspace=0.):
         logger.info("Starting server...")
         self.logger=logger
         self.port = port
@@ -19,6 +20,18 @@ class BaseServer(object):
         self.zoohost = zoohost
         self.host = hostname+":"+str(self.port)
         
+        #If it doesn't matter what port to use, just use a random one
+        if (self.port is None):
+            self.port = get_open_port()
+
+        self.configDefaults = {
+        "log4j.properties": {
+            "log4j.rootLogger": "INFO, stdout",
+            "log4j.appender.stdout": "org.apache.log4j.ConsoleAppender",
+            "log4j.appender.stdout.layout": "org.apache.log4j.PatternLayout",
+            "log4j.appender.stdout.layout.ConversionPattern":"[%d] %p %m (%c)%n"
+            }
+        }
         self.config = {"cmd": []}
         
         #These three are the three necessary parts to the server. The self.connection is handled
@@ -122,9 +135,9 @@ class BaseServer(object):
             else:
                 self.logger.info("Updating configuration file '%s'",file)
                 if (isinstance(cfg[file],dict)):
-                    for property in cfg["file"]:
-                        if (file not in self.config):
-                            self.config[file]={}
+                    if (file not in self.config):
+                        self.config[file]={}
+                    for property in cfg[file]:
                         self.config[file][property] = cfg[file][property]
                 else:
                     self.config[file] = str(cfg[file])
@@ -136,7 +149,7 @@ class BaseServer(object):
             if (file!="cmd"):   #The cmd refers to command line arguments
                 self.logger.info("write config: '%s'",file)
                 f = open(os.path.join(self.folder,file),"w")
-                if (isinstance(cfg[file],dict)):
+                if (isinstance(self.config[file],dict)):
                     for property in self.config[file]:
                         f.write(str(property)+"="+str(self.config[file][property])+"\n")
                 else:

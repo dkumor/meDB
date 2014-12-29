@@ -39,12 +39,14 @@ class Connection(object):
         
 
     def state_listener(self,state):
+        """
         if (state == KazooState.CONNECTED):
             logger.info("connected")
         elif (state == KazooState.SUSPENDED):
             logger.error("suspended connecton")
         else:
             logger.error("connection lost")
+        """
 
     def close(self):
         logger.info("closing connection")

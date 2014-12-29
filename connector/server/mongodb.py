@@ -19,8 +19,8 @@ class MongoDB(BaseServer):
     and connects to it. Once close is called, it closes the connection and kills the server.
     """
     
-    def __init__(self,chost,hostname,port,dbpath="./mongodb"):
-        BaseServer.__init__(self,"mongodb",chost,hostname,port,dbpath,logger,minspace = 512.0)
+    def __init__(self,chost,hostname,port=None,dbpath="./mongodb"):
+        BaseServer.__init__(self,"mongodb",chost,dbpath,logger,hostname,port,minspace = 512.0)
         self.connect()
         
         #Create the command line for MongoDB
