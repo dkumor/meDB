@@ -47,6 +47,7 @@ class Connection(object):
         else:
             logger.error("connection lost")
         """
+        pass
 
     def close(self):
         logger.info("closing connection")

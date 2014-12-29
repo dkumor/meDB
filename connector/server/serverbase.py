@@ -14,15 +14,16 @@ class BaseServer(object):
         logger.info("Starting server...")
         self.logger=logger
         self.port = port
+        #If it doesn't matter what port to use, just use a random one
+        if (self.port is None):
+            self.port = get_open_port()
         self.name = name
         self.folder = folder
         self.dbpath = os.path.join(self.folder,"db")
         self.zoohost = zoohost
         self.host = hostname+":"+str(self.port)
         
-        #If it doesn't matter what port to use, just use a random one
-        if (self.port is None):
-            self.port = get_open_port()
+        
 
         self.configDefaults = {
         "log4j.properties": {

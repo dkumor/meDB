@@ -2,9 +2,6 @@ import logging
 logger = logging.getLogger("MongoDB")
 
 import os
-import signal
-from subprocess32 import Popen
-
 
 from serverbase import BaseServer
 
@@ -24,7 +21,7 @@ class MongoDB(BaseServer):
         self.connect()
         
         #Create the command line for MongoDB
-        cmd = ["mongod","--dbpath",self.dbpath,"--port",str(port),
+        cmd = ["mongod","--dbpath",self.dbpath,"--port",str(self.port),
                         "--bind_ip",hostname,"--quiet","--nohttpinterface"]
         
         disk = self.checkDiskSpace()
@@ -48,7 +45,7 @@ class MongoDB(BaseServer):
         t = time.time()
         while (time.time() - t < 120.0 and self.client is None):
             try:
-                self.client = MongoClient(port=port)
+                self.client = MongoClient(port=self.port)
             except:
                 time.sleep(0.1)
                 #If the process crashed for some reason, don't continue waiting like an idiot
