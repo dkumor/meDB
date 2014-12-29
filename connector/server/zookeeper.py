@@ -20,7 +20,9 @@ class Zookeeper(BaseServer):
         cmd = ["java","-Dzookeeper.log.dir=./","-Dzookeeper.root.logger=INFO,CONSOLE",
                 "-cp",self.classpath(jardir),"org.apache.zookeeper.server.quorum.QuorumPeerMain",str(self.port),self.dbpath]
         
-        self.runServer(cmd)
+        self.addConfig({"cmd": cmd})
+        self.writeConfig()
+        self.runServer()
 
         self.connect()
         #Register!

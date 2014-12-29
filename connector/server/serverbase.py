@@ -19,7 +19,7 @@ class BaseServer(object):
         self.zoohost = zoohost
         self.host = hostname+":"+str(self.port)
         
-        self.config = {}
+        self.config = {"cmd": []}
         
         #These three are the three necessary parts to the server. The self.connection is handled
         #   in baseServer, but the rest are not.
@@ -36,7 +36,9 @@ class BaseServer(object):
         self.ensureFolder(self.dbpath)
 
     #Runs the given command
-    def runServer(self,cmd):
+    def runServer(self,cmd=None):
+        if (cmd is None):
+            cmd = self.config["cmd"]
         self.logger.info("Running command: %s",str(cmd))
         self.server = Popen(cmd,stdout=PIPE,stderr=STDOUT)
         self.logt = threading.Thread(target=self.logserver)
@@ -44,11 +46,11 @@ class BaseServer(object):
         self.logt.start()
 
     def logserver(self):
-        while True:
+        while self.server is not None:
             line = self.server.stdout.readline()
             if not line:
                 break
-            self.logger.info("["+ line.strip()+"]")
+            self.logger.info("-- "+ line.strip())
 
     def connect(self):
         self.connection = Connection(self.zoohost,self.name,self.host)
@@ -85,7 +87,7 @@ class BaseServer(object):
         return classpath[1:]   #get rid of starting :
 
     def close(self,waitTime=10.):
-        self.logger.info("Shutting down server...")
+        self.logger.warn("Shutting down server...")
         if (self.connection is not None):
             self.connection.close()
         if (self.client is not None):
@@ -103,26 +105,40 @@ class BaseServer(object):
         self.connection = None
         self.server = None
 
+        self.logger.info("server shutdown complete")
+
     def __del__(self):
         if (self.server is not None or self.connection is not None or self.client is not None):
             self.close()
 
     #Configuration file details
     def addConfig(self,cfg):
+        if (cfg is None): 
+            return    #Make sure that the config is not None
         for file in cfg:
             if (file=="cmd"):
+                self.logger.info("Updating server cmd")
                 self.config["cmd"] = self.config["cmd"] + cfg[file]
             else:
-                for property in cfg["file"]:
-                    if (file not in self.config):
-                        self.config[file]={}
-                    self.config[file][property] = cfg[file][property]
+                self.logger.info("Updating configuration file '%s'",file)
+                if (isinstance(cfg[file],dict)):
+                    for property in cfg["file"]:
+                        if (file not in self.config):
+                            self.config[file]={}
+                        self.config[file][property] = cfg[file][property]
+                else:
+                    self.config[file] = str(cfg[file])
 
     #Write generic java configuration file (useful for zookeeper and kafka)
-    def writegenericConfig(self):
+    def writeConfig(self):
+        self.logger.info("Writing configuration...")
         for file in self.config:
             if (file!="cmd"):   #The cmd refers to command line arguments
+                self.logger.info("write config: '%s'",file)
                 f = open(os.path.join(self.folder,file),"w")
-                for property in self.config[file]:
-                    f.write(str(property)+"="+str(self.config[file][property])+"\n")
+                if (isinstance(cfg[file],dict)):
+                    for property in self.config[file]:
+                        f.write(str(property)+"="+str(self.config[file][property])+"\n")
+                else:
+                    f.write(self.config[file])
                 f.close()

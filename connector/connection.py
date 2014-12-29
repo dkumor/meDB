@@ -58,7 +58,10 @@ class Connection(object):
 
         #Load the general configuration for objects of the given type
         # - need to handle error path not exist
-        data,stat = self.zoo.get(self.rootpath+"/"+name)
+        try:
+            data,stat = self.zoo.get(self.rootpath+"/"+name)
+        except: #An exceptino happens if the path does not exist
+            return None
         if (data!=""):
             return BSON.decode(data)
         else:
