@@ -57,6 +57,10 @@ class MongoDB(BaseServer):
             self.close()
             raise Exception("Could not connect to database")
 
+        #The mongoDB connection is no longer necessary
+        self.client.close()
+        self.client = None
+
         #Register the client as ready
         self.connection.registerme()
             
