@@ -53,7 +53,7 @@ class Kafka(BaseServer):
                     "socket.send.buffer.bytes":"1048576",
                     "socket.receive.buffer.bytes":"1048576",
                     "socket.request.max.bytes":"104857600",
-                    "num.partitions":"2",
+                    "num.partitions":"1",
                     
                     # The minimum age of a log file to be eligible for deletion
                     "log.retention.hours":"168",
