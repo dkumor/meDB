@@ -10,9 +10,9 @@ The Basics
 The database wraps zookeeper, kafka and MongoDB. You will need to download the jar files for zookeeper and kafka from the kafka website.
 Currently, only kafka 0.81 is supported, since python-kafka doesn't work with 0.82.
 
-Download kafka 0.81 from [here](google.com).
+Download kafka 0.81 from [here](http://kafka.apache.org/downloads.html).
 
-Create ```bin/jar``` in the root of this repository, and put all jar files from kafka (```xxx```) inside it.
+Create ```bin/jar``` in the root of this repository, and put all jar files from kafka (```/libs```) inside it.
 
 You will also need:
 
