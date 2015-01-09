@@ -1,6 +1,10 @@
 from subprocess32 import Popen,call,PIPE
 from uuid import uuid4
 import os
+import time
+
+import logging
+logger = logging.getLogger("FileCrypto.root.LUKS")
 
 class CryptoLuks(object):
     def __init__(self,cryptfile,mountdir):
@@ -92,10 +96,16 @@ class CryptoLuks(object):
             call(["chown","-R",owner+":"+owner,self.mountdir])
             call(["chmod","-R","700",self.mountdir])
 
-    def close(self):
+    def close(self,timeout=10):
         """Unmounts and closes the LUKS file"""
         if (call(["umount",self.mountdir])!=0):
-            self.panic()
+            if (timeout > 0):
+                logger.warn("close waiting on disk IO. Timeout left: %i",timeout)
+                time.sleep(1)   #Sleep for one second and attempt closing again
+                self.close(timeout-1)
+            else:
+                logger.warn("Close: timeout expired - running panic")
+                self.panic()
         else:
             call(["cryptsetup","luksClose",self.fuuid])
 

@@ -50,8 +50,13 @@ class Connection(object):
         pass
 
     def close(self):
-        logger.info("closing connection")
-        self.zoo.stop()
+        if (self.zoo is not None):
+            logger.info("closing connection")
+            self.zoo.stop()
+        self.zoo = None
+    def __del__(self):
+        if (self.zoo is not None):
+            self.close()
 
     def getconfiguration(self,name=None):
         if (name is None):

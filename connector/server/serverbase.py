@@ -4,7 +4,7 @@ import glob
 import signal
 import shutil
 import threading
-from subprocess32 import Popen,PIPE,STDOUT
+from subprocess32 import Popen,PIPE,STDOUT,TimeoutExpired
 
 from ..connection import Connection
 from ..setup.server import get_open_port
@@ -54,7 +54,7 @@ class BaseServer(object):
         if (cmd is None):
             cmd = self.config["cmd"]
         self.logger.info("Running command: %s",str(cmd))
-        self.server = Popen(cmd,stdout=PIPE,stderr=STDOUT)
+        self.server = Popen(cmd,stdout=PIPE,stderr=STDOUT,start_new_session=True)  #Don't forward signals
         self.logt = threading.Thread(target=self.logserver)
         self.logt.daemon = False
         self.logt.start()
@@ -111,7 +111,7 @@ class BaseServer(object):
             try:
                 self.server.wait(waitTime)
             except TimeoutExpired:
-                logger.warn("Expired close timeout - killing process")
+                self.logger.warn("Expired close timeout - killing process")
                 self.server.kill()
 
 

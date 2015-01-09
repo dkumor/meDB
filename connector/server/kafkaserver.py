@@ -97,7 +97,7 @@ class Kafka(BaseServer):
                 time.sleep(1)
                 #If the process crashed for some reason, don't continue waiting like an idiot
                 if (self.server.poll() is not None):
-                    logger.error("MongoDB did not start correctly.")
+                    logger.error("Kafka did not start correctly.")
                     self.server = None
                     break
         if (self.client==None):
