@@ -11,16 +11,6 @@ from kazoo.client import KazooClient
 class Zookeeper(BaseServer):
     """
     Given a setup, starts the Zookeeper server with the given configuration options
-
-
-    TODO: 
-    
-    INFO autopurge.purgeInterval set to 0 (org.apache.zookeeper.server.DatadirCleanupManager)
-    ZooKeeper:INFO - -- [2014-12-29 10:10:05,439] INFO Purge task is not scheduled. (org.apache.zookeeper.server.DatadirCleanupManager)
-    WHAT DOES THIS MEAN??? I know that I should purge zookeeper old data files after a while -but is there a setting for this (need to check when have internet)
-    
-
-    CHECK BIND PORT
     """
 
     def __init__(self,hostname,port=None,dbpath="./zookeeper",jardir="./bin/jar/"):
@@ -38,7 +28,10 @@ class Zookeeper(BaseServer):
         self.addConfig({"cmd": cmd,"log4j.properties": logproperties,
                         "zookeeper.properties":{
                             "dataDir": self.dbpath,
-                            "clientPort": str(self.port)
+                            "clientPort": str(port),
+                            "clientPortAddress": hostname,
+                            "autopurge.snapRetainCount": "3",
+                            "autopurge.purgeInterval": "1"
                             }})
         self.writeConfig()
         self.runServer()
