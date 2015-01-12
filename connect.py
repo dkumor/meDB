@@ -13,21 +13,18 @@ def runserver():
     mg = MongoDB(zk.host,s.hostname)
     kf = Kafka(zk.host,s.hostname)
 
-    
-
-    print "RUNNING AT",zk.host
+    print "\n**********************************************\n"
+    print "Started Successfully\nRUNNING AT",zk.host
+    print "\n**********************************************\n"
     
     while (True):
         try:
             signal.pause()
         except KeyboardInterrupt:
-            print "CLOSING"
             kf.close()
             mg.close()
             zk.close()
             s.close()
-    #s.close() #explicit closing is not needed - on delete it should shut down the server
-
 
 if (__name__=="__main__"):
     runserver()
