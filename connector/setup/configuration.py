@@ -31,7 +31,7 @@ class Configuration(object):
             if ("logfile" in self.cfg and self.cfg["logfile"] is not None):
                 self.logfile(self.cfg["logfile"])
 
-            logger.info("%s",str(self.cfg))
+            logger.info("CONFIGURATION: %s",str(self.cfg))
 
     def initLogger(self):
         logger = logging.getLogger()

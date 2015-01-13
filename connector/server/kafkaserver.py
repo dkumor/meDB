@@ -42,32 +42,35 @@ class Kafka(BaseServer):
 
         self.addConfig({"cmd": cmd,"log4j.properties": logproperties,
             "server.properties": {
-                    "broker.id": 0, #TODO: Set this to randint
-                    "port": str(self.port),
+                    "broker.id": 0, #TODO: Set this somehow
+                    "port": self.port,
                     "host.name": hostname,
                     "zookeeper.connect": chost+"/kafka", #The zookeeper host
                     "log.dirs":self.dbpath,
-                    "zookeeper.connection.timeout.ms":"1000000",
+                    "zookeeper.connection.timeout.ms": 1000000,
                     #"num.network.threads": "2",
                     #"num.io.threads":"8",
-                    "socket.send.buffer.bytes":"1048576",
-                    "socket.receive.buffer.bytes":"1048576",
-                    "socket.request.max.bytes":"104857600",
+                    "socket.send.buffer.bytes": 1048576,
+                    "socket.receive.buffer.bytes": 1048576,
+                    "socket.request.max.bytes": 104857600,
                     "num.partitions":"1",
                     
                     # The minimum age of a log file to be eligible for deletion
-                    "log.retention.hours":"168",
+                    "log.retention.hours": 168,
+                    #The maximum size of each partition is set by default to be 100MB
+                    #TODO: This should be set in a more clever way to avoid filling the disk, no matter how the disk is initialized (and how many different inputs there are)
+                    "log.retention.bytes": 1024*1024*100,
 
                     # A size-based retention policy for logs. Segments are pruned from the log as long as the remaining
                     # segments don't drop below log.retention.bytes.
-                    #log.retention.bytes=1073741824
 
-                    # The maximum size of a log segment file. When this size is reached a new log segment will be created.
-                    "log.segment.bytes":"536870912",
+                    # The maximum size of a log segment file. When this size is reached a new log segment will be created. 15MB is a good place to start.
+                    #This is related to log.retention.bytes, and shoud be optimized along with it.
+                    "log.segment.bytes": 1024*1024*15,
 
                     # The interval at which log segments are checked to see if they can be deleted according 
                     # to the retention policies
-                    "log.retention.check.interval.ms":"60000",
+                    "log.retention.check.interval.ms": 60000,
 
                     # By default the log cleaner is disabled and the log retention policy will default to just delete segments after their retention expires.
                     # If log.cleaner.enable=true is set the cleaner will be enabled and individual logs can then be marked for log compaction.

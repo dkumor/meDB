@@ -28,10 +28,10 @@ class Zookeeper(BaseServer):
         self.addConfig({"cmd": cmd,"log4j.properties": logproperties,
                         "zookeeper.properties":{
                             "dataDir": self.dbpath,
-                            "clientPort": str(port),
+                            "clientPort": port,
                             "clientPortAddress": hostname,
-                            "autopurge.snapRetainCount": "3",
-                            "autopurge.purgeInterval": "1"
+                            "autopurge.snapRetainCount": 3,
+                            "autopurge.purgeInterval": 1
                             }})
         self.writeConfig()
         self.runServer()
