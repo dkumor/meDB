@@ -45,26 +45,15 @@ class Zookeeper(BaseServer):
 
 
 if (__name__=="__main__"):
+    import signal
     from ..setup.server import ServerSetup
     
     
     s = ServerSetup(description="Zookeeper server standalone",bindir="./bin")
-    
-    try:
-        zk = Zookeeper(s.hostname,s.port)
-        raw_input()
-        zk.close()
-    except:
-        s.close()
-        raise
-
-    s.close()
-    
-
-    """
-    logging.basicConfig()
-    zk = Zookeeper("localhost",1337)
-    print "RUNNING"
-    raw_input()
-    zk.close()
-    """
+    zk = Zookeeper(s.hostname,s.port)
+    while (True):
+        try:
+            signal.pause()
+        except KeyboardInterrupt:
+            zk.close()
+            s.close()

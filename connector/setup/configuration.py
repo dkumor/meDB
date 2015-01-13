@@ -17,8 +17,7 @@ class Configuration(object):
     file_logformat = "%(levelname)s:%(name)s:%(created)f - %(message)s"
 
     def __init__(self,args = {
-            "password": {"help": "Password to decrypt dbfile"},
-            "connector":{"help": "Address of connector server"}
+            "password": {"help": "Password to decrypt dbfile"}
         },description=""):
 
         #Run setup only if the config is not None
@@ -93,12 +92,12 @@ class Configuration(object):
         cmdline = vars(parser.parse_args())
 
         if (cmdline["config"] is not None):
-            self.loadFile(cmdline["config"])
+            self.loadFile(cmdline["config"],cmdline["name"])
          
 
         #Now load the cmdline args to overload any config file settings
         for key in cmdline:
-            if (cmdline[key] is not None):
+            if (cmdline[key] is not None and key!="name"):
                 self.cfg[key] = cmdline[key]
 
         #Finally, make sure all args are of the correct type
@@ -106,7 +105,7 @@ class Configuration(object):
             if ("type" in args[arg] and arg in self.cfg):
                 self.cfg[arg] = args[arg]["type"](self.cfg[arg])
 
-    def loadFile(self,fname):
+    def loadFile(self,fname,lname=None):
         logger.info("Loading config '%s'",fname)
         if not (os.path.exists(fname)):
             raise Exception("Could not find configuration file")
@@ -128,6 +127,13 @@ class Configuration(object):
         while (oldname != self.cfg["name"]):
             oldname = self.cfg["name"]
             loadSettings(self.cfg["name"])
+
+        #Now, since default is loaded, we check if lname is set, and load config from there
+        if (lname is not None):
+            self.cfg["name"] = lname
+            while (oldname != self.cfg["name"]):
+                oldname = self.cfg["name"]
+                loadSettings(self.cfg["name"])
 
     def __str__(self):
         return str(self.cfg)

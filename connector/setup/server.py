@@ -23,7 +23,7 @@ def get_open_port():
 
 class ServerSetup(object):
     def __init__(self,description="",port=0,
-                 bindir=None,binoverwrite=False):
+                 bindir=None,binoverwrite=False,zoorequire=False):
         
         #Set the default port
         self.port = port
@@ -34,10 +34,16 @@ class ServerSetup(object):
             "dbdir": {"s":"d","help": "directory where dbfiles are located","default":"./db"},
             "user": {"s": "u","help": "user from which to run","default":"connector"},
             "password": {"help": "Password to decrypt dbfile"},
-            "connector":{"help": "Address of connector server"},
+            "zookeeper":{"help": "Address of zookeeper server (used for distributed server)"},
             "create":{"help": "If this is set, create the dbfile with the given size if does not exist","type": int},
             "hostname": {"help": "The hostname (or ip) to use for registering the server","default":socket.gethostname()}
         },description)
+
+        #If running servers in standalone mode, the address of the zookeeper server is required.
+        if (cfg["zookeeper"] is not None):
+            self.zookeeper = cfg["zookeeper"]
+        elif (zoorequire):
+            raise Exception("Address of zookeeper server not set in config!")
 
         self.fs = FileSetup(cfg["dbdir"],cfg["user"],cfg["name"],password=cfg["password"],create=cfg["create"],
                             bindir=bindir,binoverwrite=binoverwrite)

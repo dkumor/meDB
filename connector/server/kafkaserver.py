@@ -115,3 +115,17 @@ class Kafka(BaseServer):
         self.connection.registerme()
 
         logger.info("server running...")
+
+if (__name__=="__main__"):
+    import signal
+    from ..setup.server import ServerSetup
+    
+    
+    s = ServerSetup(description="Kafka server standalone",bindir="./bin",zoorequire=True)
+    db = Kafka(s.zookeeper,s.hostname,s.port)
+    while (True):
+        try:
+            signal.pause()
+        except KeyboardInterrupt:
+            db.close()
+            s.close()

@@ -48,7 +48,7 @@ class FileSetup(object):
                 try:
                     self.fc.create(name,password,size=create)
                 except:
-                    logging.error("couldn't create dbfile '%s'",cfg["name"])
+                    logging.error("couldn't create dbfile '%s'",name)
                     self.close()
                     raise
 
