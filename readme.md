@@ -1,3 +1,9 @@
+This project was abandoned
+==========
+
+My focus has turned to another project. This other project has made meDB irrelevant.
+
+
 meDB
 ======
 
